@@ -7,7 +7,7 @@
 #include <unistd.h>
 #include <sys/time.h>
 #inculde "uthreads.h"
-#include <queue>
+#include <list>
 
 
 #define ARBITRARY_SIG 0
@@ -15,10 +15,16 @@
 #define SUCCESS 0
 #define ZERO 0
 #define FAILURE -1
+#define SYSTEM_CALL_FAILURE 1
 #define BLOCKED 0
 #define RUNNING 1
 #define READY 2
+#define MAIN_THREAD_PRIORITY 0
+#define DEFAULT_QUANTS_RAN 0
 #define nullptr ((void*)0)
+
+//TODO: make sure all system calls are checked and exits with SYSTEM_CALL_FAILURE
+//TODO: go over the includes
 
 using namespace std;
 
@@ -39,7 +45,7 @@ thread* threadArray[MAX_THREAD_NUM];
 int* quantumArray;
 int quantumArraySize;
 thread* runningThread;
-queue<thread*> readyThreadsQueue;
+list<thread*> readyThreadsQueue;
 struct itimerval timer;
 
 
@@ -48,7 +54,13 @@ int schedule(int sig){
     // himself blocked. It means we need to save the env of the running thread, change it's mode to ready and add it to
     // the ready queue. Then set the running thread as a new one from the queue, and jump to it, and start it's timer,
     // and update that it has 1 more running time quant.
-    // TODO: mask the sigalarm
+
+    // mask the sigalarm. It is unmasked inside the if that happens after "longjmp"
+    sigset_t set;
+    sigemptyset(&set);
+    sigaddset(&set, SIGVTALRM);
+    sigprocmask(SIG_BLOCK, &set, NULL);
+
 
     // saves the current system environment into the envelope
     int ret_val = sigsetjmp(runningThread->env,NON_ZERO);
@@ -62,16 +74,27 @@ int schedule(int sig){
         timer.it_value.tv_usec = quantumArray[runningThread->priority];// first time interval, microseconds part
         // Start a virtual timer. It counts down whenever this process is executing.
         if (setitimer (ITIMER_VIRTUAL, &timer, NULL)) {
-            return FAILURE;
+            //TODO: delete the print and fflush here
+            printf("setitimer error.");
+            fflush(stdout);
+            exit(SYSTEM_CALL_FAILURE);
         }
+
+        // unmask the sigalarm
+        sigprocmask(SIG_UNBLOCK, &set, NULL);
 
         printf("Scheduled\n");
         return SUCCESS;
     }
 
-    // if we're here we already saved the system environment into the envelope.
-    runningThread->mode = READY;
-    readyThreadsQueue.push(runningThread);
+    // if we're here we already saved the system environment into the envelope
+
+    // If we got here bacause the running thread is blocked don't add it to the ready queue
+    if ( runningThread->mode != BLOCKED){
+        runningThread->mode = READY;
+        readyThreadsQueue.push(runningThread);
+    }
+
     runningThread = nullptr;
 
     runningThread = readyThreadsQueue.front();
@@ -95,19 +118,30 @@ int schedule(int sig){
  * Return value: On success, return 0. On failure, return -1.
 */
 int uthread_init(int *quantum_usecs, int size){
-	//TODO: change to setters
-	
 	quantumArray = quantum_usecs;
 	quantumArraySize = size;
-	
-	//TODO: initialize the 0 thread as the running thread in the wrapper
-	
+
+    thread* newThread = new Thread;
+
+    // the NON_ZERO in the secong arg is to save the signal mask
+    sigsetjmp(newThread->env, NON_ZERO);
+
+    newThread->quantsRanUntilNow = DEFAULT_QUANTS_RAN;
+    newThread->priority = MAIN_THREAD_PRIORITY;
+    newThread->mode = RUNNING;
+    int newID = get_new_id();
+    newThread->id = newID;
+    threadArray[newID] = newThread;
+
 	struct sigaction sa = {0};
 
 	// Install timer_handler as the signal handler for SIGVTALRM.
 	sa.sa_handler = &schedule;
 	if (sigaction(SIGVTALRM, &sa,NULL) < 0) {
+	    //TODO: delete the print and fflush here
 		printf("sigaction error.");
+        fflush(stdout);
+        exit(SYSTEM_CALL_FAILURE);
 	}
 
 	schedule(ARBITRARY_SIG);
@@ -140,7 +174,7 @@ int uthread_spawn(void (*f)(void), int priority){
     (newThread->env->__jmpbuf)[JB_PC] = translate_address(pc);
     sigemptyset(&newThread->env->__saved_mask);
 
-    newThread->quantsRanUntilNow = 0;
+    newThread->quantsRanUntilNow = DEFAULT_QUANTS_RAN;
     newThread->priority = priority;
     newThread->mode = READY;
     int newID = getNewID();
