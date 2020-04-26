@@ -20,6 +20,7 @@ typedef struct Thread{
     int mode;
 	int id;
 	int quantsRanUntilNow;
+	int priority;
 } thread;
 
 

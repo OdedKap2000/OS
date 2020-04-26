@@ -55,7 +55,9 @@ int uthread_spawn(void (*f)(void), int priority);
  * next time the thread gets scheduled.
  * Return value: On success, return 0. On failure, return -1.
 */
-int uthread_change_priority(int tid, int priority);
+int uthread_change_priority(int tid, int priority){
+    wrapper.threadArray[tid].priority = priority;
+}
 
 
 /*
