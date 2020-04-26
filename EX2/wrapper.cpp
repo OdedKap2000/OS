@@ -25,7 +25,7 @@ typedef struct Thread{
 
 class Wrapper { 
 private: 
-    thread threadArray[MAX_THREAD_NUM]; 
+    thread threadArray[MAX_THREAD_NUM];
     int* quantumArray;
 	int quantumArraySize;
 	thread* runningThread;
