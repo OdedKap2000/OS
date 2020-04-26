@@ -9,7 +9,7 @@
 #inculde "uthreads.h"
 #include <list>
 
-
+#define MAIN_THREAD 0
 #define ARBITRARY_SIG 0
 #define NON_ZERO 1
 #define SUCCESS 0
@@ -92,13 +92,13 @@ int schedule(int sig){
     // If we got here bacause the running thread is blocked don't add it to the ready queue
     if ( runningThread->mode != BLOCKED){
         runningThread->mode = READY;
-        readyThreadsQueue.push(runningThread);
+        readyThreadsQueue.push_back(runningThread);
     }
 
     runningThread = nullptr;
 
     runningThread = readyThreadsQueue.front();
-    readyThreadsQueue.pop();
+    readyThreadsQueue.pop_front();
 
     runningThread->mode=READY;
     runningThread->quantsRanUntilNow++;
@@ -181,7 +181,7 @@ int uthread_spawn(void (*f)(void), int priority){
     newThread->id = newID;
     threadArray[newID] = newThread;
 
-    readyThreadsQueue.push(newThread);
+    readyThreadsQueue.push_back(newThread);
 
     return SUCCESS;
 }
@@ -210,7 +210,19 @@ int uthread_change_priority(int tid, int priority){
  * terminated and -1 otherwise. If a thread terminates itself or the main
  * thread is terminated, the function does not return.
 */
-int uthread_terminate(int tid);
+int uthread_terminate(int tid){
+    thread* currThread = threadArray[tid];
+    readyThreadsQueue.remove(currThread);
+    delete currThread;
+    threadArray[tid] = nullptr;
+    if (tid == MAIN_THREAD){
+        // TODO Release all memory
+        exit(SUCCESS);
+    }
+    if (runningThread == currThread){
+        schedule(ARBITRARY_SIG);
+    }
+}
 
 
 /*
@@ -222,7 +234,16 @@ int uthread_terminate(int tid);
  * effect and is not considered an error.
  * Return value: On success, return 0. On failure, return -1.
 */
-int uthread_block(int tid);
+int uthread_block(int tid){
+    if (tid == 0)
+        return FAILURE;
+    thread* currThread = threadArray[tid];
+    currThread->mode = BLOCKED;
+    readyThreadsQueue.remove(currThread);
+    if (runningThread == currThread){
+        schedule(ARBITRARY_SIG);
+    }
+}
 
 
 /*
