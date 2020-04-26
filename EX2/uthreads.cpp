@@ -147,7 +147,7 @@ int uthread_init(int *quantum_usecs, int size){
 	schedule(ARBITRARY_SIG);
 }
 
-int getNewID(){
+int get_new_id(){
     int i = 0;
     while (threadArray[i] != nullptr)
         i++;
@@ -199,6 +199,17 @@ int uthread_change_priority(int tid, int priority){
 }
 
 
+int terminate_program(){
+    for (int i = 0; i < MAX_THREAD_NUM; ++i)
+    {
+        if (threadArray[i] != nullptr)
+        {
+            delete threadArray[i];
+        }
+    }
+    exit(SUCCESS);
+}
+
 /*
  * Description: This function terminates the thread with ID tid and deletes
  * it from all relevant control structures. All the resources allocated by
@@ -216,8 +227,7 @@ int uthread_terminate(int tid){
     delete currThread;
     threadArray[tid] = nullptr;
     if (tid == MAIN_THREAD){
-        // TODO Release all memory
-        exit(SUCCESS);
+        terminate_program();
     }
     if (runningThread == currThread){
         schedule(ARBITRARY_SIG);
@@ -239,10 +249,12 @@ int uthread_block(int tid){
         return FAILURE;
     thread* currThread = threadArray[tid];
     currThread->mode = BLOCKED;
-    readyThreadsQueue.remove(currThread);
     if (runningThread == currThread){
         schedule(ARBITRARY_SIG);
+        return SUCCESS;
     }
+    readyThreadsQueue.remove(currThread);
+    return SUCCESS;
 }
 
 
@@ -253,14 +265,23 @@ int uthread_block(int tid){
  * ID tid exists it is considered an error.
  * Return value: On success, return 0. On failure, return -1.
 */
-int uthread_resume(int tid);
+int uthread_resume(int tid){
+    thread* currThread = threadArray[tid];
+    if (currThread->mode != BLOCKED)
+        return SUCCESS;
+    currThread->mode = READY;
+    readyThreadsQueue.push_back(currThread);
+    return SUCCESS;
+}
 
 
 /*
  * Description: This function returns the thread ID of the calling thread.
  * Return value: The ID of the calling thread.
 */
-int uthread_get_tid();
+int uthread_get_tid(){
+    return runningThread->id;
+}
 
 
 /*
@@ -271,7 +292,14 @@ int uthread_get_tid();
  * should be increased by 1.
  * Return value: The total number of quantums.
 */
-int uthread_get_total_quantums();
+int uthread_get_total_quantums(){
+    int sum = 0;
+    for (int i = 0; i < MAX_THREAD_NUM; ++i){
+        if (threadArray[i] != nullptr)
+            sum += threadArray[i]->quantsRanUntilNow;
+    }
+    return sum;
+}
 
 
 /*
@@ -284,4 +312,6 @@ int uthread_get_total_quantums();
  * Return value: On success, return the number of quantums of the thread with ID tid.
  * 			     On failure, return -1.
 */
-int uthread_get_quantums(int tid);
+int uthread_get_quantums(int tid){
+    return threadArray[tid]->quantsRanUntilNow;
+}
