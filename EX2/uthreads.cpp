@@ -9,7 +9,7 @@
 #inculde "uthreads.h"
 #include <queue>
 
-
+#define MAIN_THREAD 0
 #define ARBITRARY_SIG 0
 #define NON_ZERO 1
 #define SUCCESS 0
@@ -176,7 +176,19 @@ int uthread_change_priority(int tid, int priority){
  * terminated and -1 otherwise. If a thread terminates itself or the main
  * thread is terminated, the function does not return.
 */
-int uthread_terminate(int tid);
+int uthread_terminate(int tid){
+    thread* currThread = threadArray[tid];
+    readyThreadsQueue.remove(currThread);
+    delete currThread;
+    threadArray[tid] = nullptr;
+    if (tid == MAIN_THREAD){
+        // TODO Release all memory
+        exit(SUCCESS);
+    }
+    if (runningThread == currThread){
+        schedule(ARBITRARY_SIG);
+    }
+}
 
 
 /*
@@ -195,7 +207,7 @@ int uthread_block(int tid){
     currThread->mode = BLOCKED;
     readyThreadsQueue.remove(currThread);
     if (runningThread == currThread){
-        schedule();
+        schedule(ARBITRARY_SIG);
     }
 }
 
