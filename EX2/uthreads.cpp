@@ -11,6 +11,7 @@
 
 
 #define ARBITRARY_SIG 0
+#define SUCCESS 0
 #define BLOCKED 0
 #define RUNNING 1
 #define READY 2
@@ -94,7 +95,16 @@ int uthread_init(int *quantum_usecs, int size){
  * Return value: On success, return the ID of the created thread.
  * On failure, return -1.
 */
-int uthread_spawn(void (*f)(void), int priority);
+int uthread_spawn(void (*f)(void), int priority){
+    thread newThread;
+    thread.stack = new char[STACK_SIZE];
+    sp = (address_t)stack1 + STACK_SIZE - sizeof(address_t);
+    pc = (address_t)f;
+    sigsetjmp(env[0], 1);
+    (env[0]->__jmpbuf)[JB_SP] = translate_address(sp);
+    (env[0]->__jmpbuf)[JB_PC] = translate_address(pc);
+    sigemptyset(&env[0]->__saved_mask);
+}
 
 
 /*
@@ -105,6 +115,7 @@ int uthread_spawn(void (*f)(void), int priority);
 */
 int uthread_change_priority(int tid, int priority){
     wrapper.threadArray[tid].priority = priority;
+    return SUCCESS;
 }
 
 
