@@ -15,6 +15,7 @@
 #define BLOCKED 0
 #define RUNNING 1
 #define READY 2
+#define nullptr ((void*)0)
 
 using namespace std;
 
@@ -32,7 +33,7 @@ typedef struct Thread{
 // wrapper part:
 
 //TODO: initialize correctly
-thread threadArray[MAX_THREAD_NUM];
+thread* threadArray[MAX_THREAD_NUM];
 int* quantumArray;
 int quantumArraySize;
 thread* runningThread;
@@ -68,20 +69,27 @@ void schedule(int sig){
 int uthread_init(int *quantum_usecs, int size){
 	//TODO: change to setters
 	
-	wrapper.quantumArray = quantum_usecs;
-	wrapper.quantumArraySize = size;
+	quantumArray = quantum_usecs;
+	quantumArraySize = size;
 	
 	//TODO: initialize the 0 thread as the running thread in the wrapper
 	
 	struct sigaction sa = {0};
 
 	// Install timer_handler as the signal handler for SIGVTALRM.
-	sa.sa_handler = &wrapper.schedule;
+	sa.sa_handler = &schedule;
 	if (sigaction(SIGVTALRM, &sa,NULL) < 0) {
 		printf("sigaction error.");
 	}
 
-	wrapper.schedule(ARBITRARY_SIG);
+	schedule(ARBITRARY_SIG);
+}
+
+int getNewID(){
+    int i = 0;
+    while (threadArray[i] != nullptr)
+        i++;
+    return i;
 }
 
 /*
@@ -96,14 +104,24 @@ int uthread_init(int *quantum_usecs, int size){
  * On failure, return -1.
 */
 int uthread_spawn(void (*f)(void), int priority){
-    thread newThread;
-    thread.stack = new char[STACK_SIZE];
-    sp = (address_t)stack1 + STACK_SIZE - sizeof(address_t);
+    thread* newThread = new Thread;
+    sp = (address_t)newThread->stack + STACK_SIZE - sizeof(address_t);
     pc = (address_t)f;
-    sigsetjmp(env[0], 1);
-    (env[0]->__jmpbuf)[JB_SP] = translate_address(sp);
-    (env[0]->__jmpbuf)[JB_PC] = translate_address(pc);
-    sigemptyset(&env[0]->__saved_mask);
+    sigsetjmp(newThread->env, 1);
+    (newThread->env->__jmpbuf)[JB_SP] = translate_address(sp);
+    (newThread->env->__jmpbuf)[JB_PC] = translate_address(pc);
+    sigemptyset(&newThread->env->__saved_mask);
+
+    newThread->quantsRanUntilNow = 0;
+    newThread->priority = priority;
+    newThread->mode = READY;
+    int newID = getNewID();
+    newThread->id = newID;
+    threadArray[newID] = newThread;
+
+    readyThreadsQueue.push(newThread);
+
+    return SUCCESS;
 }
 
 
@@ -114,7 +132,7 @@ int uthread_spawn(void (*f)(void), int priority){
  * Return value: On success, return 0. On failure, return -1.
 */
 int uthread_change_priority(int tid, int priority){
-    wrapper.threadArray[tid].priority = priority;
+    threadArray[tid]->priority = priority;
     return SUCCESS;
 }
 
