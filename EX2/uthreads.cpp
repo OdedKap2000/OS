@@ -11,7 +11,10 @@
 
 
 #define ARBITRARY_SIG 0
+#define NON_ZERO 1
 #define SUCCESS 0
+#define ZERO 0
+#define FAILURE -1
 #define BLOCKED 0
 #define RUNNING 1
 #define READY 2
@@ -32,26 +35,51 @@ typedef struct Thread{
 
 // wrapper part:
 
-//TODO: initialize correctly
 thread* threadArray[MAX_THREAD_NUM];
 int* quantumArray;
 int quantumArraySize;
 thread* runningThread;
-queue<thread> readyThreadsQueue;
+queue<thread*> readyThreadsQueue;
 struct itimerval timer;
 
 
-void schedule(int sig){
+int schedule(int sig){
+    // The situation to get here is that : the timer is called in the running of a certain thread, or the thread made
+    // himself blocked. It means we need to save the env of the running thread, change it's mode to ready and add it to
+    // the ready queue. Then set the running thread as a new one from the queue, and jump to it, and start it's timer,
+    // and update that it has 1 more running time quant.
+    // TODO: mask the sigalarm
 
-    // TODO: update the queue, and accrodingly the runnig
+    // saves the current system environment into the envelope
+    int ret_val = sigsetjmp(runningThread->env,NON_ZERO);
 
-    timer.it_value.tv_usec = quantumArray[runningThread.id];// first time interval, microseconds part
-    // Start a virtual timer. It counts down whenever this process is executing.
-    if (setitimer (ITIMER_VIRTUAL, &timer, NULL)) {
-        printf("setitimer error.");
+    // if ret_val isn't zeroit means it got here from "longjmp" and we want to set the timer and that's it.
+    // the logic is that if we got here from "longjmp" we already arranged all the queue and modes of the threads, and
+    // just need to start the timer.
+
+    if ( ret_val != ZERO ){
+        // we got here from "longjmp". so just set the timer
+        timer.it_value.tv_usec = quantumArray[runningThread->priority];// first time interval, microseconds part
+        // Start a virtual timer. It counts down whenever this process is executing.
+        if (setitimer (ITIMER_VIRTUAL, &timer, NULL)) {
+            return FAILURE;
+        }
+
+        printf("Scheduled\n");
+        return SUCCESS;
     }
 
-    printf("Scheduled\n");
+    // if we're here we already saved the system environment into the envelope.
+    runningThread->mode = READY;
+    readyThreadsQueue.push(runningThread);
+    runningThread = nullptr;
+
+    runningThread = readyThreadsQueue.front();
+    readyThreadsQueue.pop();
+
+    runningThread->mode=READY;
+    runningThread->quantsRanUntilNow++;
+    siglongjmp(runningThread->env,NON_ZERO);
 }
 
 // end of wrapper part
