@@ -35,10 +35,7 @@
 #define SIGEMPTYSET_ERROR "sigemptyset error\n"
 #define SIZE_POSITIVE "size must be positive\n"
 #define NULL_ADDRESS "thread address is null\n"
-
-//TODO: make sure all system calls are checked and exits with SYSTEM_CALL_FAILURE
-//TODO: check if priority is over quantumArraySize. In funcs spawn, change priority.
-//TODO: check if tid is over MAX_THREAD_NUM in funcs ___
+#define PRIORITY_TOO_LARGE "the priority wasn't declared in the initialization\n"
 
 using namespace std;
 
@@ -112,7 +109,6 @@ void unblockTimer(set)
 
 }
 
-// TODO: check if terminate crashes
 int schedule(int sig)
 {
     // The situation to get here is that : the timer is called in the running of a certain thread, or the thread made
@@ -123,13 +119,20 @@ int schedule(int sig)
     // mask the sigalarm. It is unmasked inside the if that happens after "longjmp"
     sigset_t set = blockTimer();
 
-    // saves the current system environment into the envelope
-    int ret_val = sigsetjmp(runningThread->env, NON_ZERO);
-    if (ret_val == FAILURE)
+    int ret_val = ZERO;
+
+    //in case of termination
+    if (runningThread != nullptr)
     {
-        cerr << SYS_ERROR << SIGSETJMP_ERROR;
-        exit(SYSTEM_CALL_FAILURE);
+        // saves the current system environment into the envelope
+        ret_val = sigsetjmp(runningThread->env, NON_ZERO);
+        if (ret_val == FAILURE)
+        {
+            cerr << SYS_ERROR << SIGSETJMP_ERROR;
+            exit(SYSTEM_CALL_FAILURE);
+        }
     }
+
     // if ret_val isn't zeroit means it got here from "longjmp" and we want to set the timer and that's it.
     // the logic is that if we got here from "longjmp" we already arranged all the queue and modes of the threads, and
     // just need to start the timer.
@@ -153,7 +156,7 @@ int schedule(int sig)
     // if we're here we already saved the system environment into the envelope
 
     // If we got here bacause the running thread is blocked don't add it to the ready queue
-    if (runningThread->mode != BLOCKED)
+    if (runningThread != nullptr && runningThread->mode != BLOCKED)
     {
         runningThread->mode = READY;
         readyThreadsQueue.push_back(runningThread);
@@ -223,6 +226,8 @@ int uthread_init(int *quantum_usecs, int size)
     threadArray[newID] = newThread;
     sumQuantumRan = DEFAULT_QUANTS_RAN;
 
+    runningThread = newThread;
+
     struct sigaction sa = {0};
 
     // Install timer_handler as the signal handler for SIGVTALRM.
@@ -245,6 +250,19 @@ int get_new_id()
     return i;
 }
 
+
+bool checkPriority(int priority)
+{
+
+    if (priority >= quantumArraySize)
+    {
+        cerr << LIB_ERROR << PRIORITY_TOO_LARGE;
+        return true;
+    }
+    return false;
+}
+
+
 /*
  * Description: This function creates a new thread, whose entry point is the
  * function f with the signature void f(void). The thread is added to the end
@@ -261,6 +279,11 @@ int uthread_spawn(void (*f)(void), int priority)
     if (f == nullptr)
     {
         cerr << LIB_ERROR << NULL_ADDRESS;
+        return FAILURE;
+    }
+
+    if (checkPriority(priority))
+    {
         return FAILURE;
     }
 
@@ -308,7 +331,14 @@ int uthread_spawn(void (*f)(void), int priority)
 int uthread_change_priority(int tid, int priority)
 {
     if (invaildTid(tid))
+    {
         return FAILURE;
+    }
+
+    if (checkPriority(priority))
+    {
+        return FAILURE
+    }
     threadArray[tid]->priority = priority;
     return SUCCESS;
 }
@@ -353,11 +383,12 @@ int uthread_terminate(int tid)
     if (runningThread == currThread)
     {
         sigset_t set = blockTimer();
+        runningThread = nullptr;
     }
     readyThreadsQueue.remove(currThread);
     delete currThread;
     threadArray[tid] = nullptr;
-    if (runningThread == currThread)
+    if (runningThread == nullptr)
     {
         schedule(ARBITRARY_SIG);
     }
