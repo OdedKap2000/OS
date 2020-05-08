@@ -33,9 +33,10 @@
 #define SIGACTION_ERROR "sigaction error\n"
 #define BAD_ALLOC_ERROR "bad alloc\n"
 #define SIGEMPTYSET_ERROR "sigemptyset error\n"
+#define SIZE_POSITIVE "size must be positive\n"
+#define NULL_ADDRESS "thread address is null\n"
 
 //TODO: make sure all system calls are checked and exits with SYSTEM_CALL_FAILURE
-//TODO: handle over 1M usecs
 //TODO: check if priority is over quantumArraySize. In funcs spawn, change priority.
 //TODO: check if tid is over MAX_THREAD_NUM in funcs ___
 
@@ -63,12 +64,13 @@ thread *runningThread;
 list<thread *> readyThreadsQueue;
 struct itimerval timer;
 
-// TODO mask signal in safeNew
 thread *safeNew()
 {
     try
     {
+        sigset_t set = blockTimer();
         thread *newThread = new Thread;
+        unblockTimer(set);
         return newThread;
     }
     catch (bad_alloc)
@@ -177,6 +179,13 @@ int schedule(int sig)
 
 bool checkArrayPositive(int *quantum_usecs, int size)
 {
+    if (size < 1)
+    {
+        err << LIB_ERROR << SIZE_POSITIVE;
+        return false;
+    }
+
+
     for (int i = 0; i < size; ++i)
     {
         if (quantum_usecs[i] <= 0)
@@ -249,6 +258,12 @@ int get_new_id()
 */
 int uthread_spawn(void (*f)(void), int priority)
 {
+    if (f == nullptr)
+    {
+        cerr << LIB_ERROR << NULL_ADDRESS;
+        return FAILURE;
+    }
+
     int newID = getNewID();
     if (newID == MAX_THREAD_NUM)
     {
@@ -333,11 +348,12 @@ int uthread_terminate(int tid)
         terminate_program();
     }
 
+    thread *currThread = threadArray[tid];
+
     if (runningThread == currThread)
     {
         sigset_t set = blockTimer();
     }
-    thread *currThread = threadArray[tid];
     readyThreadsQueue.remove(currThread);
     delete currThread;
     threadArray[tid] = nullptr;
