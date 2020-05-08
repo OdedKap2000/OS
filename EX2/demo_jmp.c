@@ -9,6 +9,7 @@
 #include <signal.h>
 #include <unistd.h>
 #include <sys/time.h>
+#include <sys/time.h>
 
 #define SECOND 1000000
 #define STACK_SIZE 4096

@@ -19,7 +19,7 @@
 #define READY 2
 #define MAIN_THREAD_PRIORITY 0
 #define DEFAULT_QUANTS_RAN 0
-#define nullptr ((void*)0)
+//#define nullptr ((void*)0)
 #define SYS_ERROR "system error: "
 #define LIB_ERROR "thread library error: "
 #define QUANTUM_POSITIVE "quantum values must be positive\n"
@@ -37,8 +37,45 @@
 #define NULL_ADDRESS "thread address is null\n"
 #define PRIORITY_TOO_LARGE "the priority wasn't declared in the initialization\n"
 
-using namespace std;
+#ifdef __x86_64__
+/* code for 64 bit Intel arch */
 
+typedef unsigned long address_t;
+#define JB_SP 6
+#define JB_PC 7
+
+/* A translation is required when using an address of a variable.
+   Use this as a black box in your code. */
+address_t translate_address(address_t addr)
+{
+    address_t ret;
+    asm volatile("xor    %%fs:0x30,%0\n"
+                 "rol    $0x11,%0\n"
+    : "=g" (ret)
+    : "0" (addr));
+    return ret;
+}
+
+#else
+/* code for 32 bit Intel arch */
+
+typedef unsigned int address_t;
+#define JB_SP 4
+#define JB_PC 5
+
+address_t translate_address(address_t addr)
+{
+    address_t ret;
+    asm volatile("xor    %%gs:0x18,%0\n"
+		"rol    $0x9,%0\n"
+                 : "=g" (ret)
+                 : "0" (addr));
+    return ret;
+}
+
+#endif
+
+using namespace std;
 
 typedef struct Thread
 {
@@ -60,6 +97,36 @@ int sumQuantumRan;
 thread *runningThread;
 list<thread *> readyThreadsQueue;
 struct itimerval timer;
+
+sigset_t blockTimer()
+{
+    sigset_t set;
+    if ((sigemptyset(&set) == FAILURE) || (sigaddset(&set, SIGVTALRM) == FAILURE) ||
+        (sigprocmask(SIG_BLOCK, &set, NULL)== FAILURE))
+    {
+        cerr << SYS_ERROR << SIGNAL_MASKING_ERROR;
+        exit(SYSTEM_CALL_FAILURE);
+    }
+    return set;
+}
+
+void unblockTimer(sigset_t set)
+{
+    if (sigprocmask(SIG_UNBLOCK, &set, NULL) == FAILURE)
+    {
+        cerr << SYS_ERROR << SIGNAL_MASKING_ERROR;
+        exit(SYSTEM_CALL_FAILURE);
+    }
+
+}
+
+int getNewId()
+{
+    int i = 0;
+    while ((i < MAX_THREAD_NUM) && (threadArray[i] != nullptr))
+        i++;
+    return i;
+}
 
 thread *safeNew()
 {
@@ -87,29 +154,8 @@ bool invaildTid(int tid)
     return false;
 }
 
-sigset_t blockTimer()
-{
-    sigset_t set;
-    if ((sigemptyset(&set) == FAILURE) || (sigaddset(&set, SIGVTALRM) == FAILURE) ||
-        (sigprocmask(SIG_BLOCK, &set, NULL);== FAILURE))
-    {
-        cerr << SYS_ERROR << SIGNAL_MASKING_ERROR;
-        exit(SYSTEM_CALL_FAILURE);
-    }
-    return set;
-}
-
-void unblockTimer(set)
-{
-    if (sigprocmask(SIG_UNBLOCK, &set, NULL) == FAILURE)
-    {
-        cerr << SYS_ERROR << SIGNAL_MASKING_ERROR;
-        exit(SYSTEM_CALL_FAILURE);
-    }
-
-}
-
-int schedule(int sig)
+// TODO: check if terminate crashes
+void schedule(int sig)
 {
     // The situation to get here is that : the timer is called in the running of a certain thread, or the thread made
     // himself blocked or terminated. It means we need to save the env of the running thread, change it's mode to ready and add it to
@@ -121,7 +167,7 @@ int schedule(int sig)
 
     int ret_val = ZERO;
 
-    //in case of termination
+    //in case of termination check for nullptr
     if (runningThread != nullptr)
     {
         // saves the current system environment into the envelope
@@ -150,7 +196,7 @@ int schedule(int sig)
 
         // unmask the sigalarm
         unblockTimer(set);
-        return SUCCESS;
+        return;
     }
 
     // if we're here we already saved the system environment into the envelope
@@ -170,11 +216,12 @@ int schedule(int sig)
     runningThread->mode = RUNNING;
     sumQuantumRan++;
     runningThread->quantsRanUntilNow++;
-    if (siglongjmp(runningThread->env, NON_ZERO) == FAILURE)
-    {
-        cerr << SYS_ERROR << SIGLONGJMP_ERROR;
-        exit(SYSTEM_CALL_FAILURE);
-    }
+     siglongjmp(runningThread->env, NON_ZERO);
+//    if (siglongjmp(runningThread->env, NON_ZERO) == FAILURE)
+//    {
+//        cerr << SYS_ERROR << SIGLONGJMP_ERROR;
+//        exit(SYSTEM_CALL_FAILURE);
+//    }
 }
 
 // end of wrapper part
@@ -184,7 +231,7 @@ bool checkArrayPositive(int *quantum_usecs, int size)
 {
     if (size < 1)
     {
-        err << LIB_ERROR << SIZE_POSITIVE;
+        cerr << LIB_ERROR << SIZE_POSITIVE;
         return false;
     }
 
@@ -221,7 +268,7 @@ int uthread_init(int *quantum_usecs, int size)
     newThread->quantsRanUntilNow = DEFAULT_QUANTS_RAN;
     newThread->priority = MAIN_THREAD_PRIORITY;
     newThread->mode = RUNNING;
-    int newID = get_new_id();
+    int newID = getNewId();
     newThread->id = newID;
     threadArray[newID] = newThread;
     sumQuantumRan = DEFAULT_QUANTS_RAN;
@@ -242,13 +289,6 @@ int uthread_init(int *quantum_usecs, int size)
     return SUCCESS;
 }
 
-int get_new_id()
-{
-    int i = 0;
-    while ((i < MAX_THREAD_NUM) && (threadArray[i] != nullptr))
-        i++;
-    return i;
-}
 
 
 bool checkPriority(int priority)
@@ -261,7 +301,6 @@ bool checkPriority(int priority)
     }
     return false;
 }
-
 
 /*
  * Description: This function creates a new thread, whose entry point is the
@@ -282,12 +321,12 @@ int uthread_spawn(void (*f)(void), int priority)
         return FAILURE;
     }
 
+    int newID = getNewId();
     if (checkPriority(priority))
     {
         return FAILURE;
     }
 
-    int newID = getNewID();
     if (newID == MAX_THREAD_NUM)
     {
         cerr << LIB_ERROR << THREAD_NUMBER_EXCEEDED;
@@ -295,8 +334,8 @@ int uthread_spawn(void (*f)(void), int priority)
     }
 
     thread *newThread = safeNew();
-    sp = (address_t) newThread->stack + STACK_SIZE - sizeof(address_t);
-    pc = (address_t) f;
+    address_t sp = (address_t)(newThread->stack) + STACK_SIZE - sizeof(address_t);
+    address_t pc = (address_t) f;
     if (sigsetjmp(newThread->env, 1) == FAILURE)
     {
         cerr << SYS_ERROR << SIGSETJMP_ERROR;
@@ -318,7 +357,7 @@ int uthread_spawn(void (*f)(void), int priority)
 
     readyThreadsQueue.push_back(newThread);
 
-    return SUCCESS;
+    return newID;
 }
 
 
@@ -337,7 +376,7 @@ int uthread_change_priority(int tid, int priority)
 
     if (checkPriority(priority))
     {
-        return FAILURE
+        return FAILURE;
     }
     threadArray[tid]->priority = priority;
     return SUCCESS;
@@ -392,6 +431,7 @@ int uthread_terminate(int tid)
     {
         schedule(ARBITRARY_SIG);
     }
+    return SUCCESS;
 }
 
 
