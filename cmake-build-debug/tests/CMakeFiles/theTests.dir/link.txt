@@ -1,0 +1,1 @@
+/usr/bin/c++    -rdynamic CMakeFiles/theTests.dir/tests_to_be_ran_separately.cpp.o  -o theTests ../libuthreads.a ../lib/libgtest_main.a ../lib/libgtest.a -lpthread 

@@ -178,6 +178,7 @@ void schedule(int sig)
     // and update that it has 1 more running time quant.
 
     // mask the sigalarm. It is unmasked inside the if that happens after "longjmp"
+    sig++;
     sigset_t set = blockTimer();
 
     int ret_val = ZERO;
@@ -424,7 +425,7 @@ int uthread_terminate(int tid)
 
     if (tid == MAIN_THREAD)
     {
-        sigset_t set = blockTimer();
+        blockTimer();
         terminate_program();
     }
 
@@ -432,7 +433,7 @@ int uthread_terminate(int tid)
 
     if (runningThread == currThread)
     {
-        sigset_t set = blockTimer();
+        blockTimer();
         runningThread = nullptr;
     }
     readyThreadsQueue.remove(currThread);
@@ -470,7 +471,7 @@ int uthread_block(int tid)
 
     if (runningThread == currThread)
     {
-        sigset_t set = blockTimer();
+        blockTimer();
     }
 
     currThread->mode = BLOCKED;

@@ -1,0 +1,26 @@
+#IncludeRegexLine: ^[ 	]*[#%][ 	]*(include|import)[ 	]*[<"]([^">]+)([">])
+
+#IncludeRegexScan: ^.*$
+
+#IncludeRegexComplain: ^$
+
+#IncludeRegexTransform: 
+
+/cs/usr/odedkaplan/OS/OS/EX2/uthreads.cpp
+uthreads.h
+/cs/usr/odedkaplan/OS/OS/EX2/uthreads.h
+sys/time.h
+-
+setjmp.h
+-
+signal.h
+-
+iostream
+-
+list
+-
+new
+-
+
+/cs/usr/odedkaplan/OS/OS/EX2/uthreads.h
+
