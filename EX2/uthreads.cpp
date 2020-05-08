@@ -85,6 +85,7 @@ typedef struct Thread
     int id;
     int quantsRanUntilNow;
     int priority;
+    bool scheduled;
 } thread;
 
 
@@ -154,7 +155,21 @@ bool invaildTid(int tid)
     return false;
 }
 
-// TODO: check if terminate crashes
+
+void setTimer(sigset_t set){
+    timer.it_value.tv_usec = quantumArray[runningThread->priority];// first time interval, microseconds part
+    // Start a virtual timer. It counts down whenever this process is executing.
+    if (setitimer(ITIMER_VIRTUAL, &timer, NULL))
+    {
+        cerr << SYS_ERROR << SETITIMER_ERROR;
+        exit(SYSTEM_CALL_FAILURE);
+    }
+
+    // unmask the sigalarm
+    unblockTimer(set);
+}
+
+
 void schedule(int sig)
 {
     // The situation to get here is that : the timer is called in the running of a certain thread, or the thread made
@@ -177,6 +192,7 @@ void schedule(int sig)
             cerr << SYS_ERROR << SIGSETJMP_ERROR;
             exit(SYSTEM_CALL_FAILURE);
         }
+        runningThread->scheduled = true;
     }
 
     // if ret_val isn't zeroit means it got here from "longjmp" and we want to set the timer and that's it.
@@ -186,16 +202,7 @@ void schedule(int sig)
     if (ret_val != ZERO)
     {
         // we got here from "longjmp". so just set the timer
-        timer.it_value.tv_usec = quantumArray[runningThread->priority];// first time interval, microseconds part
-        // Start a virtual timer. It counts down whenever this process is executing.
-        if (setitimer(ITIMER_VIRTUAL, &timer, NULL))
-        {
-            cerr << SYS_ERROR << SETITIMER_ERROR;
-            exit(SYSTEM_CALL_FAILURE);
-        }
-
-        // unmask the sigalarm
-        unblockTimer(set);
+        setTimer(set);
         return;
     }
 
@@ -216,12 +223,14 @@ void schedule(int sig)
     runningThread->mode = RUNNING;
     sumQuantumRan++;
     runningThread->quantsRanUntilNow++;
-     siglongjmp(runningThread->env, NON_ZERO);
-//    if (siglongjmp(runningThread->env, NON_ZERO) == FAILURE)
-//    {
-//        cerr << SYS_ERROR << SIGLONGJMP_ERROR;
-//        exit(SYSTEM_CALL_FAILURE);
-//    }
+
+    //if this thread didn't save it's env through schedule())
+    if( !runningThread->scheduled){
+        setTimer(set);
+    }
+
+    siglongjmp(runningThread->env, NON_ZERO);
+
 }
 
 // end of wrapper part
@@ -268,6 +277,7 @@ int uthread_init(int *quantum_usecs, int size)
     newThread->quantsRanUntilNow = DEFAULT_QUANTS_RAN;
     newThread->priority = MAIN_THREAD_PRIORITY;
     newThread->mode = RUNNING;
+    newThread->scheduled = false;
     int newID = getNewId();
     newThread->id = newID;
     threadArray[newID] = newThread;
@@ -294,7 +304,7 @@ int uthread_init(int *quantum_usecs, int size)
 bool checkPriority(int priority)
 {
 
-    if (priority >= quantumArraySize)
+    if (priority >= quantumArraySize || priority < 0)
     {
         cerr << LIB_ERROR << PRIORITY_TOO_LARGE;
         return true;
@@ -353,6 +363,7 @@ int uthread_spawn(void (*f)(void), int priority)
     newThread->priority = priority;
     newThread->mode = READY;
     newThread->id = newID;
+    newThread->scheduled = false;
     threadArray[newID] = newThread;
 
     readyThreadsQueue.push_back(newThread);

@@ -32,7 +32,7 @@
 
 #include <array>
 #include <iostream>
-#include "uthreads.h"
+#include "../uthreads.h"
 
 #define QUANT 1000000
 #define PRINTER 100000000

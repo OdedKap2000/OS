@@ -52,8 +52,8 @@ int main(void)
     uthread_get_quantums(1);
 
     int w[2] = {-10};
-	uthread_init(w, 1)
-	int m[2] = {0}
+	uthread_init(w, 1);
+	int m[2] = {0};
     uthread_init(m, 1);
 
 

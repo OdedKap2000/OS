@@ -4,4 +4,4 @@ cmake_minimum_required(VERSION 3.10)
 project(EX2)
 
 # add the executable
-add_executable(test uthreads.h uthreads.cpp jona1.cpp)
+add_executable(test uthreads.h uthreads.cpp tests/test7_no_out_different.cpp)

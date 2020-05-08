@@ -13,8 +13,8 @@
 
 void halt()
 {
-    printf("halting");
-    fflush(stdout);
+//    printf("halting");
+//    fflush(stdout);
     while (true)
     {}
 }
