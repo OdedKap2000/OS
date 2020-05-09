@@ -138,7 +138,7 @@ thread *safeNew()
         unblockTimer(set);
         return newThread;
     }
-    catch (bad_alloc)
+    catch (const bad_alloc &)
     {
         cerr << SYS_ERROR << BAD_ALLOC_ERROR;
         exit(SYSTEM_CALL_FAILURE);
@@ -154,7 +154,6 @@ bool invaildTid(int tid)
     }
     return false;
 }
-
 
 void setTimer(sigset_t set){
     timer.it_value.tv_usec = quantumArray[runningThread->priority];// first time interval, microseconds part

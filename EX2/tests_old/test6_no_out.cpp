@@ -28,7 +28,7 @@
 #include <cstdio>
 #include <cstring>
 #include <time.h>
-#include "uthreads.h"
+#include "../uthreads.h"
 
 #define GRN "\e[32m"
 #define RED "\x1B[31m"
