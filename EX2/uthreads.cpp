@@ -285,7 +285,12 @@ int uthread_init(int *quantum_usecs, int size)
 
     runningThread = newThread;
 
+
     struct sigaction sa = {0};
+
+    sigemptyset(&sigaction_handler.sa_mask);
+    sigaction_handler.sa_handler = timer_handler;
+    sigaction_handler.sa_flags = 0;
 
     // Install timer_handler as the signal handler for SIGVTALRM.
     sa.sa_handler = &schedule;

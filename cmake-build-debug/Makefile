@@ -56,41 +56,6 @@ CMAKE_BINARY_DIR = /cs/usr/odedkaplan/OS/OS/cmake-build-debug
 #=============================================================================
 # Targets provided globally by CMake.
 
-# Special rule for the target install/strip
-install/strip: preinstall
-	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --cyan "Installing the project stripped..."
-	/usr/bin/cmake -DCMAKE_INSTALL_DO_STRIP=1 -P cmake_install.cmake
-.PHONY : install/strip
-
-# Special rule for the target install/strip
-install/strip/fast: preinstall/fast
-	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --cyan "Installing the project stripped..."
-	/usr/bin/cmake -DCMAKE_INSTALL_DO_STRIP=1 -P cmake_install.cmake
-.PHONY : install/strip/fast
-
-# Special rule for the target edit_cache
-edit_cache:
-	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --cyan "Running CMake cache editor..."
-	/usr/bin/ccmake -S$(CMAKE_SOURCE_DIR) -B$(CMAKE_BINARY_DIR)
-.PHONY : edit_cache
-
-# Special rule for the target edit_cache
-edit_cache/fast: edit_cache
-
-.PHONY : edit_cache/fast
-
-# Special rule for the target install
-install: preinstall
-	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --cyan "Install the project..."
-	/usr/bin/cmake -P cmake_install.cmake
-.PHONY : install
-
-# Special rule for the target install
-install/fast: preinstall/fast
-	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --cyan "Install the project..."
-	/usr/bin/cmake -P cmake_install.cmake
-.PHONY : install/fast
-
 # Special rule for the target rebuild_cache
 rebuild_cache:
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --cyan "Running CMake to regenerate build system..."
@@ -102,27 +67,16 @@ rebuild_cache/fast: rebuild_cache
 
 .PHONY : rebuild_cache/fast
 
-# Special rule for the target list_install_components
-list_install_components:
-	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --cyan "Available install components are: \"Unspecified\""
-.PHONY : list_install_components
+# Special rule for the target edit_cache
+edit_cache:
+	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --cyan "Running CMake cache editor..."
+	/usr/bin/ccmake -S$(CMAKE_SOURCE_DIR) -B$(CMAKE_BINARY_DIR)
+.PHONY : edit_cache
 
-# Special rule for the target list_install_components
-list_install_components/fast: list_install_components
+# Special rule for the target edit_cache
+edit_cache/fast: edit_cache
 
-.PHONY : list_install_components/fast
-
-# Special rule for the target install/local
-install/local: preinstall
-	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --cyan "Installing only the local directory..."
-	/usr/bin/cmake -DCMAKE_INSTALL_LOCAL_ONLY=1 -P cmake_install.cmake
-.PHONY : install/local
-
-# Special rule for the target install/local
-install/local/fast: preinstall/fast
-	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --cyan "Installing only the local directory..."
-	/usr/bin/cmake -DCMAKE_INSTALL_LOCAL_ONLY=1 -P cmake_install.cmake
-.PHONY : install/local/fast
+.PHONY : edit_cache/fast
 
 # The main all target
 all: cmake_check_build_system
@@ -157,82 +111,44 @@ depend:
 .PHONY : depend
 
 #=============================================================================
-# Target rules for targets named uthreads
+# Target rules for targets named test
 
 # Build rule for target.
-uthreads: cmake_check_build_system
-	$(MAKE) -f CMakeFiles/Makefile2 uthreads
-.PHONY : uthreads
+test: cmake_check_build_system
+	$(MAKE) -f CMakeFiles/Makefile2 test
+.PHONY : test
 
 # fast build rule for target.
-uthreads/fast:
-	$(MAKE) -f CMakeFiles/uthreads.dir/build.make CMakeFiles/uthreads.dir/build
-.PHONY : uthreads/fast
+test/fast:
+	$(MAKE) -f CMakeFiles/test.dir/build.make CMakeFiles/test.dir/build
+.PHONY : test/fast
 
-#=============================================================================
-# Target rules for targets named theTests
+EX2/jona1.o: EX2/jona1.cpp.o
 
-# Build rule for target.
-theTests: cmake_check_build_system
-	$(MAKE) -f CMakeFiles/Makefile2 theTests
-.PHONY : theTests
+.PHONY : EX2/jona1.o
 
-# fast build rule for target.
-theTests/fast:
-	$(MAKE) -f tests/CMakeFiles/theTests.dir/build.make tests/CMakeFiles/theTests.dir/build
-.PHONY : theTests/fast
+# target to build an object file
+EX2/jona1.cpp.o:
+	$(MAKE) -f CMakeFiles/test.dir/build.make CMakeFiles/test.dir/EX2/jona1.cpp.o
+.PHONY : EX2/jona1.cpp.o
 
-#=============================================================================
-# Target rules for targets named gmock_main
+EX2/jona1.i: EX2/jona1.cpp.i
 
-# Build rule for target.
-gmock_main: cmake_check_build_system
-	$(MAKE) -f CMakeFiles/Makefile2 gmock_main
-.PHONY : gmock_main
+.PHONY : EX2/jona1.i
 
-# fast build rule for target.
-gmock_main/fast:
-	$(MAKE) -f tests/googletest-build/googlemock/CMakeFiles/gmock_main.dir/build.make tests/googletest-build/googlemock/CMakeFiles/gmock_main.dir/build
-.PHONY : gmock_main/fast
+# target to preprocess a source file
+EX2/jona1.cpp.i:
+	$(MAKE) -f CMakeFiles/test.dir/build.make CMakeFiles/test.dir/EX2/jona1.cpp.i
+.PHONY : EX2/jona1.cpp.i
 
-#=============================================================================
-# Target rules for targets named gmock
+EX2/jona1.s: EX2/jona1.cpp.s
 
-# Build rule for target.
-gmock: cmake_check_build_system
-	$(MAKE) -f CMakeFiles/Makefile2 gmock
-.PHONY : gmock
+.PHONY : EX2/jona1.s
 
-# fast build rule for target.
-gmock/fast:
-	$(MAKE) -f tests/googletest-build/googlemock/CMakeFiles/gmock.dir/build.make tests/googletest-build/googlemock/CMakeFiles/gmock.dir/build
-.PHONY : gmock/fast
-
-#=============================================================================
-# Target rules for targets named gtest_main
-
-# Build rule for target.
-gtest_main: cmake_check_build_system
-	$(MAKE) -f CMakeFiles/Makefile2 gtest_main
-.PHONY : gtest_main
-
-# fast build rule for target.
-gtest_main/fast:
-	$(MAKE) -f tests/googletest-build/googletest/CMakeFiles/gtest_main.dir/build.make tests/googletest-build/googletest/CMakeFiles/gtest_main.dir/build
-.PHONY : gtest_main/fast
-
-#=============================================================================
-# Target rules for targets named gtest
-
-# Build rule for target.
-gtest: cmake_check_build_system
-	$(MAKE) -f CMakeFiles/Makefile2 gtest
-.PHONY : gtest
-
-# fast build rule for target.
-gtest/fast:
-	$(MAKE) -f tests/googletest-build/googletest/CMakeFiles/gtest.dir/build.make tests/googletest-build/googletest/CMakeFiles/gtest.dir/build
-.PHONY : gtest/fast
+# target to generate assembly for a file
+EX2/jona1.cpp.s:
+	$(MAKE) -f CMakeFiles/test.dir/build.make CMakeFiles/test.dir/EX2/jona1.cpp.s
+.PHONY : EX2/jona1.cpp.s
 
 EX2/uthreads.o: EX2/uthreads.cpp.o
 
@@ -240,7 +156,7 @@ EX2/uthreads.o: EX2/uthreads.cpp.o
 
 # target to build an object file
 EX2/uthreads.cpp.o:
-	$(MAKE) -f CMakeFiles/uthreads.dir/build.make CMakeFiles/uthreads.dir/EX2/uthreads.cpp.o
+	$(MAKE) -f CMakeFiles/test.dir/build.make CMakeFiles/test.dir/EX2/uthreads.cpp.o
 .PHONY : EX2/uthreads.cpp.o
 
 EX2/uthreads.i: EX2/uthreads.cpp.i
@@ -249,7 +165,7 @@ EX2/uthreads.i: EX2/uthreads.cpp.i
 
 # target to preprocess a source file
 EX2/uthreads.cpp.i:
-	$(MAKE) -f CMakeFiles/uthreads.dir/build.make CMakeFiles/uthreads.dir/EX2/uthreads.cpp.i
+	$(MAKE) -f CMakeFiles/test.dir/build.make CMakeFiles/test.dir/EX2/uthreads.cpp.i
 .PHONY : EX2/uthreads.cpp.i
 
 EX2/uthreads.s: EX2/uthreads.cpp.s
@@ -258,7 +174,7 @@ EX2/uthreads.s: EX2/uthreads.cpp.s
 
 # target to generate assembly for a file
 EX2/uthreads.cpp.s:
-	$(MAKE) -f CMakeFiles/uthreads.dir/build.make CMakeFiles/uthreads.dir/EX2/uthreads.cpp.s
+	$(MAKE) -f CMakeFiles/test.dir/build.make CMakeFiles/test.dir/EX2/uthreads.cpp.s
 .PHONY : EX2/uthreads.cpp.s
 
 # Help Target
@@ -267,18 +183,12 @@ help:
 	@echo "... all (the default if no target is provided)"
 	@echo "... clean"
 	@echo "... depend"
-	@echo "... install/strip"
-	@echo "... edit_cache"
-	@echo "... uthreads"
-	@echo "... install"
 	@echo "... rebuild_cache"
-	@echo "... list_install_components"
-	@echo "... install/local"
-	@echo "... theTests"
-	@echo "... gmock_main"
-	@echo "... gmock"
-	@echo "... gtest_main"
-	@echo "... gtest"
+	@echo "... test"
+	@echo "... edit_cache"
+	@echo "... EX2/jona1.o"
+	@echo "... EX2/jona1.i"
+	@echo "... EX2/jona1.s"
 	@echo "... EX2/uthreads.o"
 	@echo "... EX2/uthreads.i"
 	@echo "... EX2/uthreads.s"

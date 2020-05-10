@@ -1,0 +1,7 @@
+[
+{
+  "directory": "/cs/usr/odedkaplan/OS/OS/EX2/cmake-build-debug/tests",
+  "command": "/usr/bin/c++   -I/cs/usr/odedkaplan/OS/OS/EX2/tests/.. -isystem /cs/usr/odedkaplan/OS/OS/EX2/cmake-build-debug/tests/googletest-src/googletest/include -isystem /cs/usr/odedkaplan/OS/OS/EX2/cmake-build-debug/tests/googletest-src/googletest  -g -fno-omit-frame-pointer -fsanitize=address   -Wall -Wextra -std=gnu++11 -o CMakeFiles/theTests.dir/tests_to_be_ran_separately.cpp.o -c /cs/usr/odedkaplan/OS/OS/EX2/tests/tests_to_be_ran_separately.cpp",
+  "file": "/cs/usr/odedkaplan/OS/OS/EX2/tests/tests_to_be_ran_separately.cpp"
+}
+]
