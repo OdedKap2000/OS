@@ -288,12 +288,11 @@ int uthread_init(int *quantum_usecs, int size)
 
     struct sigaction sa = {0};
 
-    sigemptyset(&sigaction_handler.sa_mask);
-    sigaction_handler.sa_handler = timer_handler;
-    sigaction_handler.sa_flags = 0;
+    sigemptyset(&sa.sa_mask);
+    sa.sa_handler = schedule;
+    sa.sa_flags = 0;
 
     // Install timer_handler as the signal handler for SIGVTALRM.
-    sa.sa_handler = &schedule;
     if (sigaction(SIGVTALRM, &sa, NULL) == FAILURE)
     {
         cerr << SYS_ERROR << SIGACTION_ERROR;
@@ -336,6 +335,9 @@ int uthread_spawn(void (*f)(void), int priority)
         return FAILURE;
     }
 
+
+    blockTimer();
+
     int newID = getNewId();
     if (checkPriority(priority))
     {
@@ -349,6 +351,10 @@ int uthread_spawn(void (*f)(void), int priority)
     }
 
     thread *newThread = safeNew();
+
+    //safenew might unblpck the signal
+    sigset_t newSet = blockTimer();
+
     address_t sp = (address_t)(newThread->stack) + STACK_SIZE - sizeof(address_t);
     address_t pc = (address_t) f;
     if (sigsetjmp(newThread->env, 1) == FAILURE)
@@ -373,6 +379,8 @@ int uthread_spawn(void (*f)(void), int priority)
 
     readyThreadsQueue.push_back(newThread);
 
+    unblockTimer(newSet);
+
     return newID;
 }
 
@@ -394,7 +402,12 @@ int uthread_change_priority(int tid, int priority)
     {
         return FAILURE;
     }
+    sigset_t set = blockTimer();
+
     threadArray[tid]->priority = priority;
+
+    unblockTimer(set);
+
     return SUCCESS;
 }
 
@@ -427,9 +440,10 @@ int uthread_terminate(int tid)
     if (invaildTid(tid))
         return FAILURE;
 
+    sigset_t set = blockTimer();
+
     if (tid == MAIN_THREAD)
     {
-        blockTimer();
         terminate_program();
     }
 
@@ -437,7 +451,6 @@ int uthread_terminate(int tid)
 
     if (runningThread == currThread)
     {
-        blockTimer();
         runningThread = nullptr;
     }
     readyThreadsQueue.remove(currThread);
@@ -447,6 +460,7 @@ int uthread_terminate(int tid)
     {
         schedule(ARBITRARY_SIG);
     }
+    unblockTimer(set);
     return SUCCESS;
 }
 
@@ -471,12 +485,9 @@ int uthread_block(int tid)
         return FAILURE;
     }
 
+    sigset_t set = blockTimer();
     thread *currThread = threadArray[tid];
 
-    if (runningThread == currThread)
-    {
-        blockTimer();
-    }
 
     currThread->mode = BLOCKED;
     if (runningThread == currThread)
@@ -485,6 +496,7 @@ int uthread_block(int tid)
         return SUCCESS;
     }
     readyThreadsQueue.remove(currThread);
+    unblockTimer(set);
     return SUCCESS;
 }
 
@@ -500,12 +512,13 @@ int uthread_resume(int tid)
 {
     if (invaildTid(tid))
         return FAILURE;
-
+    sigset_t set = blockTimer();
     thread *currThread = threadArray[tid];
     if (currThread->mode != BLOCKED)
         return SUCCESS;
     currThread->mode = READY;
     readyThreadsQueue.push_back(currThread);
+    unblockTimer(set);
     return SUCCESS;
 }
 
