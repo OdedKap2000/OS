@@ -6,7 +6,7 @@
 #include "MapReduceClient.h"
 #include <pthread.h>
 #include <atomic>
-
+#include "Barrier.h"
 typedef void *JobHandle;
 enum stage_t
 {
@@ -33,6 +33,7 @@ typedef struct
     pthread_mutex_t outputVecLocker;
     std::map<K2 *, std::vector<V2 *>> *intermediateMap;
     std::vector<K2 *> intermediateMapKeys;
+    Barrier *barrier;
 } JobContext;
 struct ThreadContext
 {
@@ -86,6 +87,9 @@ void *shuffleThreadRun(void *context)
             pthread_mutex_unlock(curThreadContext->locker);
         }
     }
+
+    generalContext->barrier->barrier();
+    reducePhase(currContext, generalContext);
 }
 
 void *generalThreadRun(void *contextArg)
@@ -93,7 +97,9 @@ void *generalThreadRun(void *contextArg)
     ThreadContext *currContext = (ThreadContext *) contextArg;
     JobContext *generalContext = currContext->generalContext;
     mapPhase(currContext, generalContext);
-    //todo activate barrier
+
+    generalContext->barrier->barrier();
+
     reducePhase(currContext, generalContext);
 }
 
@@ -120,7 +126,8 @@ JobHandle startMapReduceJob(const MapReduceClient &client,
 {
     pthread_t threads[multiThreadLevel];
     ThreadContext contexts[MT_LEVEL];
-    for (int i = 0; i < multiThreadLevel; ++i)
+    Barrier myBarrier(multiThreadLevel);
+    for (int i = 0; i < multiThreadLevel - 1; ++i)
     {
         contexts[i].locker = PTHREAD_MUTEX_INITIALIZER;
         pthread_create(threads + i, NULL, generalThreadRun, contexts + i);
