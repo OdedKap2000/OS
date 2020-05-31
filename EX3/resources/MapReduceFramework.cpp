@@ -27,15 +27,15 @@ typedef struct
     ThreadContext *threadContextList;
 } JobContext;
 
-typedef struct
-{
-    JobContext *currJob;
-} ThreadContext;
+struct ThreadContext {
+    std::atomic<int>* atomic_counter;
+    int* bad_counter;
+};
+
 
 
 void emit2(K2 *key, V2 *value, void *context)
 {
-
 
 }
 
@@ -49,9 +49,11 @@ JobHandle startMapReduceJob(const MapReduceClient &client,
                             const InputVec &inputVec, OutputVec &outputVec,
                             int multiThreadLevel)
 {
+    pthread_t threads[multiThreadLevel];
+    ThreadContext contexts[MT_LEVEL];
     for (int i = 0; i < multiThreadLevel; ++i)
     {
-
+        pthread_create(threads + i, NULL, foo, contexts + i);
     }
 }
 
