@@ -6,6 +6,7 @@
 #include "MapReduceClient.h"
 #include <pthread.h>
 #include <atomic>
+
 typedef void *JobHandle;
 enum stage_t
 {
@@ -20,6 +21,7 @@ typedef struct
 {
     std::atomic<int> atomicStartedCounter;
     std::atomic<int> atomicFinishedCounter;
+    std::atomic<int> atomicReducedCounter;
     ThreadContext *contexts;
     pthread_t *threads;
     int threadCount;
@@ -29,6 +31,8 @@ typedef struct
     const OutputVec &outputVec;
     const MapReduceClient &client;
     pthread_mutex_t outputVecLocker;
+    std::map<K2 *, std::vector<V2 *>> *intermediateMap;
+    std::vector<K2 *> intermediateMapKeys;
 } JobContext;
 struct ThreadContext
 {
@@ -36,6 +40,7 @@ struct ThreadContext
     JobContext *generalContext;
     std::List<IntermediatePair> outputVec;
 };
+
 void *mapPhase()
 {
     int inputVecLength = generalContext->inputVecLength;
@@ -47,9 +52,19 @@ void *mapPhase()
         generalContext->client.map(std::get<0>(pair), std::get<1>(pair), currContext);
     }
 }
+
 void *reducePhase(ThreadContext *currContext, JobContext *generalContext)
 {
+    int keysLength = (generalContext->intermediateMapKeys).size();
+    int currAtomic = 0;
+    while (currAtomic < keysLength)
+    {
+        currAtomic = (generalContext->atomicReducedCounter)++;
+        K2 *currKey = generalContext->intermediateMapKeys[currAtomic];
+        generalContext->client.reduce(currKey, generalContext->intermediateMap[currKey], currContext);
+    }
 }
+
 void *shuffleThreadRun(void *context)
 {
     ThreadContext *currContext = (ThreadContext *) contextArg;
@@ -72,6 +87,7 @@ void *shuffleThreadRun(void *context)
         }
     }
 }
+
 void *generalThreadRun(void *contextArg)
 {
     ThreadContext *currContext = (ThreadContext *) contextArg;
@@ -80,6 +96,7 @@ void *generalThreadRun(void *contextArg)
     //todo activate barrier
     reducePhase(currContext, generalContext);
 }
+
 void emit2(K2 *key, V2 *value, void *context)
 {
     ThreadContext *tc = (ThreadContext *) context;
@@ -87,6 +104,7 @@ void emit2(K2 *key, V2 *value, void *context)
     tc.outputVec.push_back(IntermediatePair(key, value));
     pthread_mutex_unlock(&tc->locker);
 }
+
 void emit3(K3 *key, V3 *value, void *context)
 {
     ThreadContext *tc = (ThreadContext *) context;
@@ -95,6 +113,7 @@ void emit3(K3 *key, V3 *value, void *context)
     generalContext.outputVec.push_back(OutputPair(key, value));
     pthread_mutex_unlock(generalContext->outputVecLocker);
 }
+
 JobHandle startMapReduceJob(const MapReduceClient &client,
                             const InputVec &inputVec, OutputVec &outputVec,
                             int multiThreadLevel)
@@ -107,6 +126,7 @@ JobHandle startMapReduceJob(const MapReduceClient &client,
         pthread_create(threads + i, NULL, generalThreadRun, contexts + i);
     }
 }
+
 void waitForJob(JobHandle job)
 {
     JobContext *jobContext = (JobContext *) job;
@@ -115,12 +135,14 @@ void waitForJob(JobHandle job)
         pthread_join(jobContext->threads[i], NULL);
     }
 }
+
 void getJobState(JobHandle job, JobState *state)
 {
     JobContext *jobContext = (JobContext *) job;
     state->stage = job.stage;
     state->percentage = (float) job.atomicFinishedCounter / job.inputVec.size();
 }
+
 void closeJobHandle(JobHandle job)
 {
     JobContext *jobContext = (JobContext *) job;
