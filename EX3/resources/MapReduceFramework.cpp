@@ -7,8 +7,6 @@
 #include <pthread.h>
 #include <atomic>
 
-#define MASK_TWO_LOWER_BITS 3
-
 typedef void *JobHandle;
 
 enum stage_t
@@ -24,9 +22,8 @@ typedef struct
 
 typedef struct
 {
-    std::atomic<int> atomic_counter(
-
-    0);
+    std::atomic<int> atomicStartedCounter;
+    std::atomic<int> atomicFinishedCounter;
     ThreadContext *contexts;
     pthread_t *threads;
     int threadCount;
@@ -37,13 +34,21 @@ typedef struct
 struct ThreadContext
 {
     pthread_mutex_t locker;
-
-    std::atomic<int> *atomic_counter(
-
-    0);
-    int *bad_counter;
+    JobContext *generalContext;
 };
 
+void* generalThreadRun(void* contextArg){
+    ThreadContext* currContext = (ThreadContext*) contextArg;
+    JobContext *generalContext = currContext->generalContext;
+    int currAtomic = 0;
+    int inputVecLength = generalContext->inputVecLength;
+    while (currAtomic < inputVecLength ){
+        currAtomic = generalContext->atomicStartedCounter++;
+
+
+    }
+
+}
 
 void emit2(K2 *key, V2 *value, void *context)
 {
@@ -65,7 +70,7 @@ JobHandle startMapReduceJob(const MapReduceClient &client,
     for (int i = 0; i < multiThreadLevel; ++i)
     {
         contexts[i].locker = PTHREAD_MUTEX_INITIALIZER;
-        pthread_create(threads + i, NULL, client.map, contexts + i);
+        pthread_create(threads + i, NULL, generalThreadRun, contexts + i);
     }
 }
 
@@ -90,5 +95,3 @@ void closeJobHandle(JobHandle job)
     JobContext *jobContext = (JobContext *) job;
     //TODO: delete everything you need
 }
-
-
