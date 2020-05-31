@@ -146,12 +146,31 @@ void waitForJob(JobHandle job)
 void getJobState(JobHandle job, JobState *state)
 {
     JobContext *jobContext = (JobContext *) job;
-    state->stage = job.stage;
-    state->percentage = (float) job.atomicFinishedCounter / job.inputVec.size();
+    state->stage = jobContext->stage;
+    state->percentage = (float) jobContext->atomicFinishedCounter / jobContext->inputVec.size();
+}
+
+void deleteContextsAndThreads(JobContext *jobContext)
+{
+    for (int i = 0; i < jobContext->threadCount; i++)
+    {
+        delete jobContext->threads[i];
+        delete jobContext->contexts[i];
+    }
 }
 
 void closeJobHandle(JobHandle job)
 {
+    waitForJob(job);
     JobContext *jobContext = (JobContext *) job;
+
+    delete jobContext->atomicStartedCounter;
+    delete jobContext->atomicFinishedCounter;
+    delete jobContext->atomicReducedCounter;
+    ThreadContext *contexts;
+    pthread_t *threads;
+    delete jobContext->outputVecLocker;
+    delete jobContext->intermediateMap;
+    delete jobContext->intermediateMapKeys;
     //TODO: delete everything you need
 }
