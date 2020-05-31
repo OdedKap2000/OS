@@ -29,6 +29,9 @@ typedef struct
     int threadCount;
     stage_t stage;
     int inputVecLength;
+    const InputVec &inputVec;
+    const OutputVec &outputVec;
+    const MapReduceClient &client;
 } JobContext;
 
 struct ThreadContext
@@ -42,11 +45,15 @@ void* generalThreadRun(void* contextArg){
     JobContext *generalContext = currContext->generalContext;
     int currAtomic = 0;
     int inputVecLength = generalContext->inputVecLength;
-    while (currAtomic < inputVecLength ){
+    while (currAtomic < inputVecLength){
         currAtomic = generalContext->atomicStartedCounter++;
-
-
+        InputPair pair = (generalContext->inputVec)[currAtomic];
+        generalContext->client.map(std::get<0>(pair), std::get<1>(pair),currContext);
     }
+
+    //todo activate barrier
+
+
 
 }
 
