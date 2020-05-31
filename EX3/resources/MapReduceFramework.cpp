@@ -44,18 +44,48 @@ struct ThreadContext
     std::List<IntermediatePair> outputVec;
 };
 
-void *mapPhase(){
+void *mapPhase()
+{
     int inputVecLength = generalContext->inputVecLength;
     int currAtomic = 0;
-    while (currAtomic < inputVecLength){
+    while (currAtomic < inputVecLength)
+    {
         currAtomic = generalContext->atomicStartedCounter++;
         InputPair pair = (generalContext->inputVec)[currAtomic];
-        generalContext->client.map(std::get<0>(pair), std::get<1>(pair),currContext);
+        generalContext->client.map(std::get<0>(pair), std::get<1>(pair), currContext);
     }
 }
 
-void *reducePhase(ThreadContext *currContext, JobContext *generalContext){
+void *reducePhase(ThreadContext *currContext, JobContext *generalContext)
+{
 
+}
+
+void *shuffleThreadRun(void *context)
+{
+    ThreadContext *currContext = (ThreadContext *) contextArg;
+    JobContext *generalContext = currContext->generalContext;
+    while (generalContext->atomicFinishedCounter < generalContext->inputVec.size())
+    {
+        for (int i = 0; i < generalContext->threadCount; i++)
+        {
+            ThreadContext *curThreadContext = generalContext->contexts[i];
+            pthread_mutex_lock(curThreadContext->locker);
+
+            //take out all the pairs and remove them
+            std::list<IntermediatePair *>::iterator it = curThreadContext->outputVec.begin();
+            while (it != curThreadContext->outputVec.end())
+            {
+                IntermediatePair *intermediatePair = *it;
+                (*generalContext.intermediateMap)[intermediatePair->first].push_back(intermediatePair->second);
+
+                curThreadContext->outputVec.erase(it++);
+            }
+
+            pthread_mutex_unlock(curThreadContext->locker);
+
+        }
+    }
 }
 
 void *generalThreadRun(void *contextArg)
@@ -68,7 +98,8 @@ void *generalThreadRun(void *contextArg)
     //todo activate barrier
 
 
-   reducePhase(currContext, generalContext);
+
+    reducePhase(currContext, generalContext);
 
 
 }
@@ -121,7 +152,7 @@ void getJobState(JobHandle job, JobState *state)
 {
     JobContext *jobContext = (JobContext *) job;
     state->stage = job.stage;
-    state->percentage = (float) job.atomicFinishedCounter / job.inputVecLength;
+    state->percentage = (float) job.atomicFinishedCounter / job.inputVec.size();
 }
 
 void closeJobHandle(JobHandle job)
