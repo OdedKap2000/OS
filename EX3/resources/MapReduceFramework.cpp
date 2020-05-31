@@ -24,10 +24,14 @@ typedef struct
 
 typedef struct
 {
-    std::atomic<int> atomic_counter(0);
+    std::atomic<int> atomic_counter(
+
+    0);
     ThreadContext *contexts;
     pthread_t *threads;
     int threadCount;
+    stage_t stage;
+    int inputVecLength;
 } JobContext;
 
 struct ThreadContext
@@ -67,20 +71,24 @@ JobHandle startMapReduceJob(const MapReduceClient &client,
 
 void waitForJob(JobHandle job)
 {
-
-    for
-
+    JobContext *jobContext = (JobContext *) job;
+    for (int i = 0; i < jobContext.threadCount; i++)
+    {
+        pthread_join(jobContext->threads[i], NULL);
+    }
 }
 
 void getJobState(JobHandle job, JobState *state)
 {
-
-
+    JobContext *jobContext = (JobContext *) job;
+    state->stage = job.stage;
+    state->percentage = (float) job.atomicFinishedCounter / job.inputVecLength;
 }
 
 void closeJobHandle(JobHandle job)
 {
-
+    JobContext *jobContext = (JobContext *) job;
+    //TODO: delete everything you need
 }
 
 
