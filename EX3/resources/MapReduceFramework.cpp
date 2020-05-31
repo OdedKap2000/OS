@@ -44,20 +44,31 @@ struct ThreadContext
     std::List<IntermediatePair> outputVec;
 };
 
-void *generalThreadRun(void *contextArg)
-{
-    ThreadContext *currContext = (ThreadContext *) contextArg;
-    JobContext *generalContext = currContext->generalContext;
-    int currAtomic = 0;
+void *mapPhase(){
     int inputVecLength = generalContext->inputVecLength;
+    int currAtomic = 0;
     while (currAtomic < inputVecLength){
         currAtomic = generalContext->atomicStartedCounter++;
         InputPair pair = (generalContext->inputVec)[currAtomic];
         generalContext->client.map(std::get<0>(pair), std::get<1>(pair),currContext);
     }
+}
+
+void *reducePhase(ThreadContext *currContext, JobContext *generalContext){
+
+}
+
+void *generalThreadRun(void *contextArg)
+{
+    ThreadContext *currContext = (ThreadContext *) contextArg;
+    JobContext *generalContext = currContext->generalContext;
+
+    mapPhase(currContext, generalContext);
 
     //todo activate barrier
 
+
+   reducePhase(currContext, generalContext);
 
 
 }
