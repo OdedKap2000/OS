@@ -32,16 +32,21 @@ typedef struct
     const InputVec &inputVec;
     const OutputVec &outputVec;
     const MapReduceClient &client;
+    pthread_mutex_t outputVecLocker;
+
+
 } JobContext;
 
 struct ThreadContext
 {
     pthread_mutex_t locker;
     JobContext *generalContext;
+    std::List<IntermediatePair> outputVec;
 };
 
-void* generalThreadRun(void* contextArg){
-    ThreadContext* currContext = (ThreadContext*) contextArg;
+void *generalThreadRun(void *contextArg)
+{
+    ThreadContext *currContext = (ThreadContext *) contextArg;
     JobContext *generalContext = currContext->generalContext;
     int currAtomic = 0;
     int inputVecLength = generalContext->inputVecLength;
@@ -59,13 +64,24 @@ void* generalThreadRun(void* contextArg){
 
 void emit2(K2 *key, V2 *value, void *context)
 {
+    ThreadContext *tc = (ThreadContext *) context;
+    pthread_mutex_lock(&tc->locker);
+
+    tc.outputVec.push_back(IntermediatePair(key, value));
+
+    pthread_mutex_unlock(&tc->locker);
 
 }
 
 void emit3(K3 *key, V3 *value, void *context)
 {
+    ThreadContext *tc = (ThreadContext *) context;
+    JobContext generalContext = tc->generalContext;
+    pthread_mutex_lock(generalContext->outputVecLocker);
 
+    generalContext.outputVec.push_back(OutputPair(key, value));
 
+    pthread_mutex_unlock(generalContext->outputVecLocker);
 }
 
 JobHandle startMapReduceJob(const MapReduceClient &client,
