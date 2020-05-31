@@ -6,6 +6,7 @@
 #include "MapReduceClient.h"
 #include <pthread.h>
 #include <atomic>
+#define MASK_TWO_LOWER_BITS 3
 
 typedef void *JobHandle;
 
@@ -22,9 +23,7 @@ typedef struct
 
 typedef struct
 {
-    std::atomic<int> atomic_counter(
-
-    0);
+    std::atomic<int> atomic_counter(0);
 } JobContext;
 
 
@@ -44,8 +43,10 @@ JobHandle startMapReduceJob(const MapReduceClient &client,
                             const InputVec &inputVec, OutputVec &outputVec,
                             int multiThreadLevel)
 {
+    for (int i = 0; i < multiThreadLevel; ++i)
+    {
 
-
+    }
 }
 
 void waitForJob(JobHandle job)
