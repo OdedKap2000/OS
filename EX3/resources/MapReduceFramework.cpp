@@ -24,7 +24,13 @@ typedef struct
 typedef struct
 {
     std::atomic<int> atomic_counter(0);
+    ThreadContext *threadContextList;
 } JobContext;
+
+typedef struct
+{
+    JobContext *currJob;
+} ThreadContext;
 
 
 void emit2(K2 *key, V2 *value, void *context)
