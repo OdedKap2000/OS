@@ -7,6 +7,7 @@
 #include <pthread.h>
 #include <atomic>
 #include "Barrier.h"
+
 typedef void *JobHandle;
 enum stage_t
 {
@@ -31,6 +32,7 @@ typedef struct
     const OutputVec &outputVec;
     const MapReduceClient &client;
     pthread_mutex_t outputVecLocker;
+    pthread_mutex_t stageLocker;
     std::map<K2 *, std::vector<V2 *>> *intermediateMap;
     std::vector<K2 *> intermediateMapKeys;
     Barrier *barrier;
@@ -51,6 +53,7 @@ void *mapPhase()
         currAtomic = generalContext->atomicStartedCounter++;
         InputPair pair = (generalContext->inputVec)[currAtomic];
         generalContext->client.map(std::get<0>(pair), std::get<1>(pair), currContext);
+        generalContext->atomicFinishedCounter++;
     }
 }
 
@@ -64,10 +67,17 @@ void *reducePhase(ThreadContext *currContext, JobContext *generalContext)
         K2 *currKey = generalContext->intermediateMapKeys[currAtomic];
         generalContext->client.reduce(currKey, generalContext->intermediateMap[currKey], currContext);
     }
+    pthread_mutex_lock(&(generalContext->stageLocker));
+
+    generalContext->stage = UNDEFINED_STAGE;
+
+    pthread_mutex_unlock(&(generalContext->stageLocker));
 }
 
 void *shuffleThreadRun(void *context)
 {
+    //TODO: update shuffle stage
+    // TODO: go over the logic
     ThreadContext *currContext = (ThreadContext *) contextArg;
     JobContext *generalContext = currContext->generalContext;
     while (generalContext->atomicFinishedCounter < generalContext->inputVec.size())
@@ -75,7 +85,7 @@ void *shuffleThreadRun(void *context)
         for (int i = 0; i < generalContext->threadCount; i++)
         {
             ThreadContext *curThreadContext = generalContext->contexts[i];
-            pthread_mutex_lock(curThreadContext->locker);
+            pthread_mutex_lock(&(curThreadContext->locker));
             //take out all the pairs and remove them
             std::list<IntermediatePair *>::iterator it = curThreadContext->outputVec.begin();
             while (it != curThreadContext->outputVec.end())
@@ -84,11 +94,17 @@ void *shuffleThreadRun(void *context)
                 (*generalContext.intermediateMap)[intermediatePair->first].push_back(intermediatePair->second);
                 curThreadContext->outputVec.erase(it++);
             }
-            pthread_mutex_unlock(curThreadContext->locker);
+            pthread_mutex_unlock(&(curThreadContext->locker));
         }
     }
 
     generalContext->barrier->barrier();
+    pthread_mutex_lock(&(generalContext->stageLocker));
+
+    generalContext->stage = REDUCE_STAGE;
+
+    pthread_mutex_unlock(&(generalContext->stageLocker));
+
     reducePhase(currContext, generalContext);
 }
 
@@ -106,7 +122,7 @@ void *generalThreadRun(void *contextArg)
 void emit2(K2 *key, V2 *value, void *context)
 {
     ThreadContext *tc = (ThreadContext *) context;
-    pthread_mutex_lock(&tc->locker);
+    pthread_mutex_lock(&(tc->locker));
     tc.outputVec.push_back(IntermediatePair(key, value));
     pthread_mutex_unlock(&tc->locker);
 }
@@ -115,9 +131,9 @@ void emit3(K3 *key, V3 *value, void *context)
 {
     ThreadContext *tc = (ThreadContext *) context;
     JobContext generalContext = tc->generalContext;
-    pthread_mutex_lock(generalContext->outputVecLocker);
+    pthread_mutex_lock(&(generalContext->outputVecLocker));
     generalContext.outputVec.push_back(OutputPair(key, value));
-    pthread_mutex_unlock(generalContext->outputVecLocker);
+    pthread_mutex_unlock(&generalContext->outputVecLocker);
 }
 
 JobHandle startMapReduceJob(const MapReduceClient &client,
@@ -139,6 +155,8 @@ JobHandle startMapReduceJob(const MapReduceClient &client,
     generalContext->inputVec = inputVec;
     generalContext->inputVecLength = inputVec.size();
     generalContext->outputVec = outputVec;
+    generalContext->stageLocker = PTHREAD_MUTEX_INITIALIZER;
+    generalContext->stage = MAP_STAGE;
 
     for (int i = 0; i < multiThreadLevel - 1; ++i)
     {
@@ -147,7 +165,7 @@ JobHandle startMapReduceJob(const MapReduceClient &client,
         pthread_create(threads + i, NULL, generalThreadRun, contexts + i);
     }
 
-    pthread_create(threads + (multiThreadLevel-1), NULL, shuffleThreadRun, contexts + (multiThreadLevel-1));
+    pthread_create(threads + (multiThreadLevel - 1), NULL, shuffleThreadRun, contexts + (multiThreadLevel - 1));
 }
 
 void waitForJob(JobHandle job)
@@ -162,7 +180,12 @@ void waitForJob(JobHandle job)
 void getJobState(JobHandle job, JobState *state)
 {
     JobContext *jobContext = (JobContext *) job;
+    pthread_mutex_lock(&(jobContext->stageLocker));
+
     state->stage = jobContext->stage;
+
+    pthread_mutex_unlock(&(jobContext->stageLocker));
+
     state->percentage = (float) jobContext->atomicFinishedCounter / jobContext->inputVec.size();
 }
 
@@ -177,6 +200,7 @@ void deleteContextsAndThreads(JobContext *jobContext)
 
 void closeJobHandle(JobHandle job)
 {
+    //TODO: ensure we delete all
     waitForJob(job);
     JobContext *jobContext = (JobContext *) job;
 
@@ -188,5 +212,5 @@ void closeJobHandle(JobHandle job)
     delete jobContext->outputVecLocker;
     delete jobContext->intermediateMap;
     delete jobContext->intermediateMapKeys;
-    //TODO: delete everything you need
+    delete jobContext->stageLocker;
 }
