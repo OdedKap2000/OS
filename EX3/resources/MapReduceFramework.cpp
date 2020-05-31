@@ -124,14 +124,30 @@ JobHandle startMapReduceJob(const MapReduceClient &client,
                             const InputVec &inputVec, OutputVec &outputVec,
                             int multiThreadLevel)
 {
+    JobContext *generalContext;
     pthread_t threads[multiThreadLevel];
     ThreadContext contexts[MT_LEVEL];
     Barrier myBarrier(multiThreadLevel);
+
+    generalContext->barrier = &myBarrier;
+    generalContext->threads = threads;
+    generalContext->threadCount = multiThreadLevel;
+    generalContext->client = client;
+    generalContext->atomicReducedCounter = 0;
+    generalContext->atomicFinishedCounter = 0;
+    generalContext->atomicStartedCounter = 0;
+    generalContext->inputVec = inputVec;
+    generalContext->inputVecLength = inputVec.size();
+    generalContext->outputVec = outputVec;
+
     for (int i = 0; i < multiThreadLevel - 1; ++i)
     {
+        contexts[i] = new ThreadContext;
         contexts[i].locker = PTHREAD_MUTEX_INITIALIZER;
         pthread_create(threads + i, NULL, generalThreadRun, contexts + i);
     }
+
+    pthread_create(threads + (multiThreadLevel-1), NULL, shuffleThreadRun, contexts + (multiThreadLevel-1));
 }
 
 void waitForJob(JobHandle job)
