@@ -24,7 +24,9 @@ typedef struct
 typedef struct
 {
     std::atomic<int> atomic_counter(0);
-    ThreadContext *threadContextList;
+    ThreadContext *contexts;
+    pthread_t *threads;
+    int threadCount;
 } JobContext;
 
 struct ThreadContext {
