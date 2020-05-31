@@ -6,6 +6,7 @@
 #include "MapReduceClient.h"
 #include <pthread.h>
 #include <atomic>
+
 #define MASK_TWO_LOWER_BITS 3
 
 typedef void *JobHandle;
@@ -29,11 +30,15 @@ typedef struct
     int threadCount;
 } JobContext;
 
-struct ThreadContext {
-    std::atomic<int>* atomic_counter;
-    int* bad_counter;
-};
+struct ThreadContext
+{
+    pthread_mutex_t locker;
 
+    std::atomic<int> *atomic_counter(
+
+    0);
+    int *bad_counter;
+};
 
 
 void emit2(K2 *key, V2 *value, void *context)
@@ -55,13 +60,15 @@ JobHandle startMapReduceJob(const MapReduceClient &client,
     ThreadContext contexts[MT_LEVEL];
     for (int i = 0; i < multiThreadLevel; ++i)
     {
-        pthread_create(threads + i, NULL, foo, contexts + i);
+        contexts[i].locker = PTHREAD_MUTEX_INITIALIZER;
+        pthread_create(threads + i, NULL, client.map, contexts + i);
     }
 }
 
 void waitForJob(JobHandle job)
 {
 
+    for
 
 }
 
@@ -73,7 +80,6 @@ void getJobState(JobHandle job, JobState *state)
 
 void closeJobHandle(JobHandle job)
 {
-
 
 }
 
