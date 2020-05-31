@@ -24,6 +24,7 @@ typedef struct
 {
     std::atomic<int> atomicStartedCounter;
     std::atomic<int> atomicFinishedCounter;
+    std::atomic<int> atomicReducedCounter;
     ThreadContext *contexts;
     pthread_t *threads;
     int threadCount;
@@ -33,7 +34,8 @@ typedef struct
     const OutputVec &outputVec;
     const MapReduceClient &client;
     pthread_mutex_t outputVecLocker;
-
+    std::map<K2*,std::vector<V2*>> *intermediateMap;
+    std::vector<K2*> intermediateMapKeys;
 
 } JobContext;
 
@@ -48,43 +50,20 @@ void *mapPhase()
 {
     int inputVecLength = generalContext->inputVecLength;
     int currAtomic = 0;
-    while (currAtomic < inputVecLength)
-    {
-        currAtomic = generalContext->atomicStartedCounter++;
+    while (currAtomic < inputVecLength){
+        currAtomic = (generalContext->atomicStartedCounter)++;
         InputPair pair = (generalContext->inputVec)[currAtomic];
         generalContext->client.map(std::get<0>(pair), std::get<1>(pair), currContext);
     }
 }
 
-void *reducePhase(ThreadContext *currContext, JobContext *generalContext)
-{
-
-}
-
-void *shuffleThreadRun(void *context)
-{
-    ThreadContext *currContext = (ThreadContext *) contextArg;
-    JobContext *generalContext = currContext->generalContext;
-    while (generalContext->atomicFinishedCounter < generalContext->inputVec.size())
-    {
-        for (int i = 0; i < generalContext->threadCount; i++)
-        {
-            ThreadContext *curThreadContext = generalContext->contexts[i];
-            pthread_mutex_lock(curThreadContext->locker);
-
-            //take out all the pairs and remove them
-            std::list<IntermediatePair *>::iterator it = curThreadContext->outputVec.begin();
-            while (it != curThreadContext->outputVec.end())
-            {
-                IntermediatePair *intermediatePair = *it;
-                (*generalContext.intermediateMap)[intermediatePair->first].push_back(intermediatePair->second);
-
-                curThreadContext->outputVec.erase(it++);
-            }
-
-            pthread_mutex_unlock(curThreadContext->locker);
-
-        }
+void *reducePhase(ThreadContext *currContext, JobContext *generalContext){
+    int keysLength =(generalContext->intermediateMapKeys).size();
+    int currAtomic = 0;
+    while (currAtomic < keysLength){
+        currAtomic = (generalContext->atomicReducedCounter)++;
+        K2* currKey = generalContext->intermediateMapKeys[currAtomic];
+        generalContext->client.reduce(currKey, generalContext->intermediateMap[currKey], currContext);
     }
 }
 
