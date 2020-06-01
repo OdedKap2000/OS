@@ -201,17 +201,15 @@ void deleteContextsAndThreads(JobContext *jobContext)
 
 void closeJobHandle(JobHandle job)
 {
-    //TODO: ensure we delete all
     waitForJob(job);
     JobContext *jobContext = (JobContext *) job;
 
-    delete jobContext->atomicStartedCounter;
-    delete jobContext->atomicFinishedCounter;
-    delete jobContext->atomicReducedCounter;
-    ThreadContext *contexts;
-    pthread_t *threads;
-    delete jobContext->outputVecLocker;
+//    delete jobContext->atomicStartedCounter;
+//    delete jobContext->atomicFinishedCounter;
+//    delete jobContext->atomicReducedCounter;
+    deleteContextsAndThreads(jobContext);
+    pthread_mutex_destroy(jobContext->outputVecLocker);
+    pthread_mutex_destroy(jobContext->stageLocker);
     delete jobContext->intermediateMap;
     delete jobContext->intermediateMapKeys;
-    delete jobContext->stageLocker;
 }
