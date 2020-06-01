@@ -37,6 +37,7 @@ typedef struct
     IntermediateMap *intermediateMap;
     std::vector<K2 *> *intermediateMapKeys;
     Barrier *barrier;
+    bool isWaitCalled;
 } JobContext;
 
 void mapPhase(ThreadContext *currContext, JobContext *generalContext)
@@ -75,7 +76,7 @@ void *shuffleThreadRun(void *contextArg)
     //TODO: update shuffle stage
     // TODO: go over the logic
     ThreadContext *currContext = (ThreadContext *) contextArg;
-    JobContext *generalContext = (JobContext*) currContext->generalContext;
+    JobContext *generalContext = (JobContext *) currContext->generalContext;
     while (*(generalContext->atomicFinishedCounter) < generalContext->inputVec.size())
     {
         for (int i = 0; i < generalContext->threadCount; i++)
@@ -132,8 +133,12 @@ void *shuffleThreadRun(void *contextArg)
     pthread_mutex_unlock(&(generalContext->stageLocker));
 
     reducePhase(currContext, generalContext);
-}
 
+    for (int i = 0; i < generalContext->threadCount - 1; i++)
+    {
+        pthread_join(generalContext->threads[i], NULL);
+    }
+}
 void *generalThreadRun(void *contextArg)
 {
     ThreadContext *currContext = (ThreadContext *) contextArg;
@@ -186,7 +191,8 @@ JobHandle startMapReduceJob(const MapReduceClient &client,
             .stageLocker = PTHREAD_MUTEX_INITIALIZER,
             .intermediateMap = new IntermediateMap,
             .intermediateMapKeys = new std::vector<K2*>,
-            .barrier = &myBarrier
+            .barrier = &myBarrier,
+            .isWaitCalled = false
     };
 
 
@@ -204,10 +210,8 @@ JobHandle startMapReduceJob(const MapReduceClient &client,
 void waitForJob(JobHandle job)
 {
     JobContext *jobContext = (JobContext *) job;
-    for (int i = 0; i < jobContext->threadCount; i++)
-    {
-        pthread_join(jobContext->threads[i], NULL);
-    }
+    jobContext->isWaitCalled = true;
+    pthread_join(jobContext->threads[jobContext->threadCount-1], NULL);
 }
 
 void getJobState(JobHandle job, JobState *state)
@@ -235,12 +239,13 @@ void deleteContextsAndThreads(JobContext *jobContext)
 
 void closeJobHandle(JobHandle job)
 {
-    waitForJob(job);
     JobContext *jobContext = (JobContext *) job;
+    if (!jobContext->isWaitCalled)
+        waitForJob(job);
 
-//    delete jobContext->atomicStartedCounter;
-//    delete jobContext->atomicFinishedCounter;
-//    delete jobContext->atomicReducedCounter;
+    delete jobContext->atomicStartedCounter;
+    delete jobContext->atomicFinishedCounter;
+    delete jobContext->atomicReducedCounter;
     deleteContextsAndThreads(jobContext);
     pthread_mutex_destroy(&(jobContext->outputVecLocker));
     pthread_mutex_destroy(&(jobContext->stageLocker));
