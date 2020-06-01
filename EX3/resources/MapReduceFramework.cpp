@@ -165,7 +165,8 @@ JobHandle startMapReduceJob(const MapReduceClient &client,
         pthread_create(threads + i, NULL, generalThreadRun, contexts + i);
     }
 
-    pthread_create(threads + (multiThreadLevel - 1), NULL, shuffleThreadRun, contexts + (multiThreadLevel - 1));
+    pthread_create(threads + (multiThreadLevel-1), NULL, shuffleThreadRun, contexts + (multiThreadLevel-1));
+    return generalContext;
 }
 
 void waitForJob(JobHandle job)
