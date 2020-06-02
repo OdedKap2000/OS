@@ -12,7 +12,7 @@
 static const int REPEATS = 10000;
 static const int DEADLOCK_REPEATS = 1000000;
 
-static const int RANDOM_REPEATS = 2000;
+static const int RANDOM_REPEATS = 5;//2000;
 
 pthread_mutex_t k2ResourcesMutex = PTHREAD_MUTEX_INITIALIZER;
 

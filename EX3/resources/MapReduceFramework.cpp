@@ -344,12 +344,20 @@ void waitForJob(JobHandle job)
 void getJobState(JobHandle job, JobState *state)
 {
     JobContext *jobContext = (JobContext *) job;
-    pthread_mutex_lock(&(jobContext->stageLocker));
+    if (pthread_mutex_lock(&(jobContext->stageLocker)) != SUCCESS)
+    {
+        std::cerr << SYS_ERROR << MUTEX_LOCK_FAILED;
+        exit(SYSTEM_CALL_FAILURE);
+    }
 
     state->stage = jobContext->stage;
 
-    pthread_mutex_unlock(&(jobContext->stageLocker));
+    if (pthread_mutex_unlock(&(jobContext->stageLocker)) != SUCCESS)
+    {
+        std::cerr << SYS_ERROR << MUTEX_UNLOCK_FAILED;
+        exit(SYSTEM_CALL_FAILURE);
 
+    }
     state->percentage = (float) (*(jobContext->atomicFinishedCounter)) * 100 / jobContext->inputVec.size();
 }
 
