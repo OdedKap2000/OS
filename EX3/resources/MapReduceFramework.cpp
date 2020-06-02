@@ -9,6 +9,7 @@
 #include <list>
 #include "Barrier.h"
 
+#define SUCCESS 0
 //TODO print errors
 
 typedef void *JobHandle;
@@ -63,11 +64,20 @@ void reducePhase(ThreadContext *currContext, JobContext *generalContext)
         K2 *currKey = generalContext->intermediateMapKeys->at(currAtomic);
         generalContext->client.reduce(currKey, (*generalContext->intermediateMap)[currKey], currContext);
     }
-    pthread_mutex_lock(&(generalContext->stageLocker));
+    if (pthread_mutex_lock(&(generalContext->stageLocker)) != SUCCESS)
+    {
+      printf("system error: mutex lock failed\n");
+      exit(1);
+    }
+
 
     generalContext->stage = UNDEFINED_STAGE;
 
-    pthread_mutex_unlock(&(generalContext->stageLocker));
+    if (pthread_mutex_unlock(&(generalContext->stageLocker)) != SUCCESS)
+    {
+        printf("system error: mutex unlock failed\n");
+        exit(1);
+    }
 }
 
 
@@ -82,7 +92,11 @@ void *shuffleThreadRun(void *contextArg)
         for (int i = 0; i < generalContext->threadCount; i++)
         {
             ThreadContext *curThreadContext = &generalContext->contexts[i];
-            pthread_mutex_lock(&(curThreadContext->locker));
+            if (pthread_mutex_lock(&(curThreadContext->locker)) != SUCCESS)
+            {
+                printf("system error: mutex lock failed\n");
+                exit(1);
+            }
             //take out all the pairs and remove them
             std::list<IntermediatePair>::iterator it = curThreadContext->outputVec.begin();
             while (it != curThreadContext->outputVec.end())
@@ -91,20 +105,36 @@ void *shuffleThreadRun(void *contextArg)
                 (*(generalContext->intermediateMap))[intermediatePair.first].push_back(intermediatePair.second);
                 curThreadContext->outputVec.erase(it++);
             }
-            pthread_mutex_unlock(&(curThreadContext->locker));
+            if (pthread_mutex_unlock(&(curThreadContext->locker)) != SUCCESS)
+            {
+                printf("system error: mutex unlock failed\n");
+                exit(1);
+            }
         }
     }
 
-    pthread_mutex_lock(&(generalContext->stageLocker));
+    if (pthread_mutex_lock(&(generalContext->stageLocker)) != SUCCESS)
+    {
+        printf("system error: mutex lock failed\n");
+        exit(1);
+    }
 
     generalContext->stage = SHUFFLE_STAGE;
 
-    pthread_mutex_unlock(&(generalContext->stageLocker));
+    if (pthread_mutex_unlock(&(generalContext->stageLocker)) != SUCCESS)
+    {
+        printf("system error: mutex unlock failed\n");
+        exit(1);
+    }
 
     for (int i = 0; i < generalContext->threadCount; i++)
     {
         ThreadContext *curThreadContext = &generalContext->contexts[i];
-        pthread_mutex_lock(&(curThreadContext->locker));
+        if (pthread_mutex_lock(&(curThreadContext->locker)) != SUCCESS)
+        {
+            printf("system error: mutex lock failed\n");
+            exit(1);
+        }
         //take out all the pairs and remove them
         std::list<IntermediatePair>::iterator it = curThreadContext->outputVec.begin();
         while (it != curThreadContext->outputVec.end())
@@ -113,30 +143,42 @@ void *shuffleThreadRun(void *contextArg)
             (*(generalContext->intermediateMap))[intermediatePair.first].push_back(intermediatePair.second);
             curThreadContext->outputVec.erase(it++);
         }
-        pthread_mutex_unlock(&(curThreadContext->locker));
+        if (pthread_mutex_unlock(&(curThreadContext->locker)) != SUCCESS)
+        {
+            printf("system error: mutex unlock failed\n");
+            exit(1);
+        }
     }
 
-//    for(std::map<K2 *, std::vector<V2 *>>::iterator it = generalContext->intermediateMap.begin(); it != generalContext->intermediateMap.end(); ++it) {
-//        v.push_back(it->first);
-//        cout << it->first << "\n";
-//    }
     for (auto &it : *generalContext->intermediateMap)
     {
         generalContext->intermediateMapKeys->push_back(it.first);
     }
 
     generalContext->barrier->barrier();
-    pthread_mutex_lock(&(generalContext->stageLocker));
+    if (pthread_mutex_lock(&(generalContext->stageLocker)) != SUCCESS)
+    {
+        printf("system error: mutex lock failed\n");
+        exit(1);
+    }
 
     generalContext->stage = REDUCE_STAGE;
 
-    pthread_mutex_unlock(&(generalContext->stageLocker));
+    if (pthread_mutex_unlock(&(generalContext->stageLocker)) != SUCCESS)
+    {
+        printf("system error: mutex unlock failed\n");
+        exit(1);
+    }
 
     reducePhase(currContext, generalContext);
 
     for (int i = 0; i < generalContext->threadCount - 1; i++)
     {
-        pthread_join(generalContext->threads[i], NULL);
+        if (pthread_join(generalContext->threads[i], NULL) != SUCCESS)
+        {
+            printf("system error: join failed\n");
+            exit(1);
+        }
     }
 }
 void *generalThreadRun(void *contextArg)
@@ -153,18 +195,34 @@ void *generalThreadRun(void *contextArg)
 void emit2(K2 *key, V2 *value, void *context)
 {
     ThreadContext *tc = (ThreadContext *) context;
-    pthread_mutex_lock(&(tc->locker));
+    if (pthread_mutex_lock(&(tc->locker)) != SUCCESS)
+    {
+        printf("system error: mutex lock failed\n");
+        exit(1);
+    }
     tc->outputVec.push_back(IntermediatePair(key, value));
-    pthread_mutex_unlock(&tc->locker);
+    if (pthread_mutex_unlock(&(tc->locker)) != SUCCESS)
+    {
+        printf("system error: mutex unlock failed\n");
+        exit(1);
+    }
 }
 
 void emit3(K3 *key, V3 *value, void *context)
 {
     ThreadContext *tc = (ThreadContext *) context;
     JobContext *generalContext = (JobContext*)tc->generalContext;
-    pthread_mutex_lock(&(generalContext->outputVecLocker));
+    if (pthread_mutex_lock(&(generalContext->outputVecLocker)) != SUCCESS)
+    {
+        printf("system error: mutex lock failed\n");
+        exit(1);
+    }
     generalContext->outputVec.push_back(OutputPair(key, value));
-    pthread_mutex_unlock(&generalContext->outputVecLocker);
+    if (pthread_mutex_unlock(&generalContext->outputVecLocker) != SUCCESS)
+    {
+        printf("system error: mutex unlock failed\n");
+        exit(1);
+    }
 }
 
 JobHandle startMapReduceJob(const MapReduceClient &client,
