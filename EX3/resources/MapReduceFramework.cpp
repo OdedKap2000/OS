@@ -6,6 +6,7 @@
 #include <list>
 #include "Barrier.h"
 #include <iostream>
+
 #define SUCCESS 0
 #define SYSTEM_CALL_FAILURE 1
 
@@ -27,7 +28,7 @@ struct ThreadContext
 {
     pthread_mutex_t locker;
     JobHandle generalContext;
-    std::list<IntermediatePair> outputVec;
+    std::list<IntermediatePair>* outputVec;
 };
 
 typedef struct
@@ -53,40 +54,26 @@ typedef struct
 void mapPhase(ThreadContext *currContext, JobContext *generalContext)
 {
     int inputVecLength = generalContext->inputVec.size();
-    int currAtomic = 0;
+    int currAtomic = (*(generalContext->atomicStartedCounter))++;
     InputPair pair;
-    while (currAtomic < inputVecLength)
+    while (currAtomic < inputVecLength)// - 1)
     {
-        currAtomic = (*(generalContext->atomicStartedCounter))++;
         pair = (generalContext->inputVec)[currAtomic];
         generalContext->client.map(pair.first, pair.second, currContext);
-        generalContext->atomicFinishedCounter++;
+        (*(generalContext->atomicFinishedCounter))++;
+        currAtomic = (*(generalContext->atomicStartedCounter))++;
     }
 }
 
 void reducePhase(ThreadContext *currContext, JobContext *generalContext)
 {
     int keysLength = (generalContext->intermediateMapKeys)->size();
-    int currAtomic = 0;
+    int currAtomic = (*(generalContext->atomicReducedCounter))++;
     while (currAtomic < keysLength)
     {
-        currAtomic = *(generalContext->atomicReducedCounter)++;
         K2 *currKey = generalContext->intermediateMapKeys->at(currAtomic);
         generalContext->client.reduce(currKey, (*generalContext->intermediateMap)[currKey], currContext);
-    }
-    if (pthread_mutex_lock(&(generalContext->stageLocker)) != SUCCESS)
-    {
-        std::cerr << SYS_ERROR << MUTEX_LOCK_FAILED;
-        exit(SYSTEM_CALL_FAILURE);
-    }
-
-
-    generalContext->stage = UNDEFINED_STAGE;
-
-    if (pthread_mutex_unlock(&(generalContext->stageLocker)) != SUCCESS)
-    {
-        std::cerr << SYS_ERROR << MUTEX_UNLOCK_FAILED;
-        exit(SYSTEM_CALL_FAILURE);
+        currAtomic = (*(generalContext->atomicReducedCounter))++;
     }
 }
 
@@ -97,9 +84,9 @@ void *shuffleThreadRun(void *contextArg)
     // TODO: go over the logic
     ThreadContext *currContext = (ThreadContext *) contextArg;
     JobContext *generalContext = (JobContext *) currContext->generalContext;
-    while (*(generalContext->atomicFinishedCounter) < generalContext->inputVec.size())
+    while (*(generalContext->atomicFinishedCounter) < generalContext->inputVec.size() - 1)
     {
-        for (int i = 0; i < generalContext->threadCount; i++)
+        for (int i = 0; i < generalContext->threadCount - 1; i++)
         {
             ThreadContext *curThreadContext = &generalContext->contexts[i];
             if (pthread_mutex_lock(&(curThreadContext->locker)) != SUCCESS)
@@ -108,13 +95,19 @@ void *shuffleThreadRun(void *contextArg)
                 exit(SYSTEM_CALL_FAILURE);
             }
             //take out all the pairs and remove them
-            std::list<IntermediatePair>::iterator it = curThreadContext->outputVec.begin();
-            while (it != curThreadContext->outputVec.end())
+
+//            for(std::list<IntermediatePair> :: iterator it = curThreadContext->outputVec.begin(); it != curThreadContext->outputVec.end(); ++it){
+//                printf("%d", *it);
+//            }
+            std::list<IntermediatePair>::iterator it = curThreadContext->outputVec->begin();
+
+            while (it != curThreadContext->outputVec->end())
             {
                 IntermediatePair intermediatePair = *it;
                 (*(generalContext->intermediateMap))[intermediatePair.first].push_back(intermediatePair.second);
-                curThreadContext->outputVec.erase(it++);
+                curThreadContext->outputVec->erase(it++);
             }
+
             if (pthread_mutex_unlock(&(curThreadContext->locker)) != SUCCESS)
             {
                 std::cerr << SYS_ERROR << MUTEX_UNLOCK_FAILED;
@@ -137,7 +130,7 @@ void *shuffleThreadRun(void *contextArg)
         exit(SYSTEM_CALL_FAILURE);
     }
 
-    for (int i = 0; i < generalContext->threadCount; i++)
+    for (int i = 0; i < generalContext->threadCount - 1; i++)
     {
         ThreadContext *curThreadContext = &generalContext->contexts[i];
         if (pthread_mutex_lock(&(curThreadContext->locker)) != SUCCESS)
@@ -146,12 +139,12 @@ void *shuffleThreadRun(void *contextArg)
             exit(SYSTEM_CALL_FAILURE);
         }
         //take out all the pairs and remove them
-        std::list<IntermediatePair>::iterator it = curThreadContext->outputVec.begin();
-        while (it != curThreadContext->outputVec.end())
+        std::list<IntermediatePair>::iterator it = curThreadContext->outputVec->begin();
+        while (it != curThreadContext->outputVec->end())
         {
             IntermediatePair intermediatePair = *it;
             (*(generalContext->intermediateMap))[intermediatePair.first].push_back(intermediatePair.second);
-            curThreadContext->outputVec.erase(it++);
+            curThreadContext->outputVec->erase(it++);
         }
         if (pthread_mutex_unlock(&(curThreadContext->locker)) != SUCCESS)
         {
@@ -191,6 +184,10 @@ void *shuffleThreadRun(void *contextArg)
             exit(SYSTEM_CALL_FAILURE);
         }
     }
+
+
+
+
 }
 
 void *generalThreadRun(void *contextArg)
@@ -212,7 +209,7 @@ void emit2(K2 *key, V2 *value, void *context)
         std::cerr << SYS_ERROR << MUTEX_LOCK_FAILED;
         exit(SYSTEM_CALL_FAILURE);
     }
-    tc->outputVec.push_back(IntermediatePair(key, value));
+    tc->outputVec->push_back(IntermediatePair(key, value));
     if (pthread_mutex_unlock(&(tc->locker)) != SUCCESS)
     {
         std::cerr << SYS_ERROR << MUTEX_UNLOCK_FAILED;
@@ -242,9 +239,10 @@ JobHandle startMapReduceJob(const MapReduceClient &client,
                             int multiThreadLevel)
 {
 
-    pthread_t threads[multiThreadLevel];
-    ThreadContext contexts[multiThreadLevel];
-    Barrier myBarrier(multiThreadLevel);
+    pthread_t* threads = new pthread_t[multiThreadLevel];
+    //TODO: delete the news here
+    ThreadContext* contexts = new ThreadContext[multiThreadLevel];
+    Barrier* myBarrier = new Barrier(multiThreadLevel);
     // TODO delete atomics
     try
     {
@@ -263,16 +261,30 @@ JobHandle startMapReduceJob(const MapReduceClient &client,
                 .stageLocker = PTHREAD_MUTEX_INITIALIZER,
                 .intermediateMap = new IntermediateMap,
                 .intermediateMapKeys = new std::vector<K2 *>,
-                .barrier = &myBarrier,
+                .barrier = myBarrier,
                 .isWaitCalled = false
         };
 
+        if (pthread_mutex_lock(&(generalContext->stageLocker)) != SUCCESS)
+        {
+            std::cerr << SYS_ERROR << MUTEX_LOCK_FAILED;
+            exit(SYSTEM_CALL_FAILURE);
+        }
+
+        generalContext->stage = UNDEFINED_STAGE;
+
+        if (pthread_mutex_unlock(&(generalContext->stageLocker)) != SUCCESS)
+        {
+            std::cerr << SYS_ERROR << MUTEX_UNLOCK_FAILED;
+            exit(SYSTEM_CALL_FAILURE);
+        }
 
         for (int i = 0; i < multiThreadLevel - 1; ++i)
         {
             contexts[i] = *new ThreadContext;
             contexts[i].locker = PTHREAD_MUTEX_INITIALIZER;
             contexts[i].generalContext = generalContext;
+            contexts[i].outputVec = new std::list<IntermediatePair>;
             int pthreadErrno = pthread_create(threads + i, NULL, generalThreadRun, contexts + i);
             if (pthreadErrno != SUCCESS)
             {
@@ -281,18 +293,33 @@ JobHandle startMapReduceJob(const MapReduceClient &client,
             }
         }
 
-    contexts[multiThreadLevel - 1] = *new ThreadContext;
-    contexts[multiThreadLevel - 1].locker = PTHREAD_MUTEX_INITIALIZER;
-    contexts[multiThreadLevel - 1].generalContext = generalContext;
+        contexts[multiThreadLevel - 1] = *new ThreadContext;
+        contexts[multiThreadLevel - 1].locker = PTHREAD_MUTEX_INITIALIZER;
+        contexts[multiThreadLevel - 1].generalContext = generalContext;
 
-    int pthreadErrno = pthread_create(threads + (multiThreadLevel - 1), NULL, &shuffleThreadRun,
-                                      contexts + (multiThreadLevel - 1));
-    if (pthreadErrno != SUCCESS)
-    {
-        std::cerr << SYS_ERROR << PTHREAD_CREATE_ERROR << pthreadErrno << "\n";
-        exit(SYSTEM_CALL_FAILURE);
-    }
-    return generalContext;
+        int pthreadErrno = pthread_create(threads + (multiThreadLevel - 1), NULL, &shuffleThreadRun,
+                                          contexts + (multiThreadLevel - 1));
+
+        if (pthread_mutex_lock(&(generalContext->stageLocker)) != SUCCESS)
+        {
+            std::cerr << SYS_ERROR << MUTEX_LOCK_FAILED;
+            exit(SYSTEM_CALL_FAILURE);
+        }
+
+        generalContext->stage = MAP_STAGE;
+
+        if (pthread_mutex_unlock(&(generalContext->stageLocker)) != SUCCESS)
+        {
+            std::cerr << SYS_ERROR << MUTEX_UNLOCK_FAILED;
+            exit(SYSTEM_CALL_FAILURE);
+        }
+
+        if (pthreadErrno != SUCCESS)
+        {
+            std::cerr << SYS_ERROR << PTHREAD_CREATE_ERROR << pthreadErrno << "\n";
+            exit(SYSTEM_CALL_FAILURE);
+        }
+        return generalContext;
     }
     catch (const std::bad_alloc &)
     {
@@ -323,18 +350,18 @@ void getJobState(JobHandle job, JobState *state)
 
     pthread_mutex_unlock(&(jobContext->stageLocker));
 
-    state->percentage = (float) *(jobContext->atomicFinishedCounter) / jobContext->inputVec.size();
+    state->percentage = (float) (*(jobContext->atomicFinishedCounter)) * 100 / jobContext->inputVec.size();
 }
 
 void deleteContextsAndThreads(JobContext *jobContext)
 {
-    //TODO delete atomics
-    for (int i = 0; i < jobContext->threadCount; i++)
-    {
-        delete &(jobContext->threads[i]);
-        delete &(jobContext->contexts[i]);
-    }
-
+//    for (int i = 0; i < jobContext->threadCount; i++)
+//    {
+//        delete &((jobContext->threads)[i]);
+//        delete &((jobContext->contexts)[i]);
+//    }
+    delete(jobContext->threads);
+    delete(jobContext->contexts);
 }
 
 void closeJobHandle(JobHandle job)
@@ -350,5 +377,5 @@ void closeJobHandle(JobHandle job)
     pthread_mutex_destroy(&(jobContext->outputVecLocker));
     pthread_mutex_destroy(&(jobContext->stageLocker));
     delete jobContext->intermediateMap;
-    delete &(jobContext->intermediateMapKeys);
+    delete (jobContext->intermediateMapKeys);
 }
