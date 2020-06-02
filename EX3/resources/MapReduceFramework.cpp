@@ -5,7 +5,7 @@
 #include <atomic>
 #include <list>
 #include "Barrier.h"
-
+#include <iostream>
 #define SUCCESS 0
 #define SYSTEM_CALL_FAILURE 1
 
@@ -54,10 +54,11 @@ void mapPhase(ThreadContext *currContext, JobContext *generalContext)
 {
     int inputVecLength = generalContext->inputVec.size();
     int currAtomic = 0;
+    InputPair pair;
     while (currAtomic < inputVecLength)
     {
-        currAtomic = *(generalContext->atomicStartedCounter)++;
-        InputPair pair = (generalContext->inputVec)[currAtomic];
+        currAtomic = (*(generalContext->atomicStartedCounter))++;
+        pair = (generalContext->inputVec)[currAtomic];
         generalContext->client.map(pair.first, pair.second, currContext);
         generalContext->atomicFinishedCounter++;
     }
@@ -75,7 +76,7 @@ void reducePhase(ThreadContext *currContext, JobContext *generalContext)
     }
     if (pthread_mutex_lock(&(generalContext->stageLocker)) != SUCCESS)
     {
-        cerr << SYS_ERROR << MUTEX_LOCK_FAILED;
+        std::cerr << SYS_ERROR << MUTEX_LOCK_FAILED;
         exit(SYSTEM_CALL_FAILURE);
     }
 
@@ -84,7 +85,7 @@ void reducePhase(ThreadContext *currContext, JobContext *generalContext)
 
     if (pthread_mutex_unlock(&(generalContext->stageLocker)) != SUCCESS)
     {
-        cerr << SYS_ERROR << MUTEX_UNLOCK_FAILED;
+        std::cerr << SYS_ERROR << MUTEX_UNLOCK_FAILED;
         exit(SYSTEM_CALL_FAILURE);
     }
 }
@@ -103,7 +104,7 @@ void *shuffleThreadRun(void *contextArg)
             ThreadContext *curThreadContext = &generalContext->contexts[i];
             if (pthread_mutex_lock(&(curThreadContext->locker)) != SUCCESS)
             {
-                cerr << SYS_ERROR << MUTEX_LOCK_FAILED;
+                std::cerr << SYS_ERROR << MUTEX_LOCK_FAILED;
                 exit(SYSTEM_CALL_FAILURE);
             }
             //take out all the pairs and remove them
@@ -116,7 +117,7 @@ void *shuffleThreadRun(void *contextArg)
             }
             if (pthread_mutex_unlock(&(curThreadContext->locker)) != SUCCESS)
             {
-                cerr << SYS_ERROR << MUTEX_UNLOCK_FAILED;
+                std::cerr << SYS_ERROR << MUTEX_UNLOCK_FAILED;
                 exit(SYSTEM_CALL_FAILURE);
             }
         }
@@ -124,7 +125,7 @@ void *shuffleThreadRun(void *contextArg)
 
     if (pthread_mutex_lock(&(generalContext->stageLocker)) != SUCCESS)
     {
-        cerr << SYS_ERROR << MUTEX_LOCK_FAILED;
+        std::cerr << SYS_ERROR << MUTEX_LOCK_FAILED;
         exit(SYSTEM_CALL_FAILURE);
     }
 
@@ -132,7 +133,7 @@ void *shuffleThreadRun(void *contextArg)
 
     if (pthread_mutex_unlock(&(generalContext->stageLocker)) != SUCCESS)
     {
-        cerr << SYS_ERROR << MUTEX_UNLOCK_FAILED;
+        std::cerr << SYS_ERROR << MUTEX_UNLOCK_FAILED;
         exit(SYSTEM_CALL_FAILURE);
     }
 
@@ -141,7 +142,7 @@ void *shuffleThreadRun(void *contextArg)
         ThreadContext *curThreadContext = &generalContext->contexts[i];
         if (pthread_mutex_lock(&(curThreadContext->locker)) != SUCCESS)
         {
-            cerr << SYS_ERROR << MUTEX_LOCK_FAILED;
+            std::cerr << SYS_ERROR << MUTEX_LOCK_FAILED;
             exit(SYSTEM_CALL_FAILURE);
         }
         //take out all the pairs and remove them
@@ -154,7 +155,7 @@ void *shuffleThreadRun(void *contextArg)
         }
         if (pthread_mutex_unlock(&(curThreadContext->locker)) != SUCCESS)
         {
-            cerr << SYS_ERROR << MUTEX_UNLOCK_FAILED;
+            std::cerr << SYS_ERROR << MUTEX_UNLOCK_FAILED;
             exit(SYSTEM_CALL_FAILURE);
         }
     }
@@ -167,7 +168,7 @@ void *shuffleThreadRun(void *contextArg)
     generalContext->barrier->barrier();
     if (pthread_mutex_lock(&(generalContext->stageLocker)) != SUCCESS)
     {
-        cerr << SYS_ERROR << MUTEX_LOCK_FAILED;
+        std::cerr << SYS_ERROR << MUTEX_LOCK_FAILED;
         exit(SYSTEM_CALL_FAILURE);
     }
 
@@ -175,7 +176,7 @@ void *shuffleThreadRun(void *contextArg)
 
     if (pthread_mutex_unlock(&(generalContext->stageLocker)) != SUCCESS)
     {
-        cerr << SYS_ERROR << MUTEX_UNLOCK_FAILED;
+        std::cerr << SYS_ERROR << MUTEX_UNLOCK_FAILED;
         exit(SYSTEM_CALL_FAILURE);
     }
 
@@ -186,7 +187,7 @@ void *shuffleThreadRun(void *contextArg)
         int pthreadErrno = pthread_join(generalContext->threads[i], NULL);
         if (pthreadErrno != SUCCESS)
         {
-            cerr << SYS_ERROR << JOIN_FAILED << pthreadErrno << "\n";
+            std::cerr << SYS_ERROR << JOIN_FAILED << pthreadErrno << "\n";
             exit(SYSTEM_CALL_FAILURE);
         }
     }
@@ -208,13 +209,13 @@ void emit2(K2 *key, V2 *value, void *context)
     ThreadContext *tc = (ThreadContext *) context;
     if (pthread_mutex_lock(&(tc->locker)) != SUCCESS)
     {
-        cerr << SYS_ERROR << MUTEX_LOCK_FAILED;
+        std::cerr << SYS_ERROR << MUTEX_LOCK_FAILED;
         exit(SYSTEM_CALL_FAILURE);
     }
     tc->outputVec.push_back(IntermediatePair(key, value));
     if (pthread_mutex_unlock(&(tc->locker)) != SUCCESS)
     {
-        cerr << SYS_ERROR << MUTEX_UNLOCK_FAILED;
+        std::cerr << SYS_ERROR << MUTEX_UNLOCK_FAILED;
         exit(SYSTEM_CALL_FAILURE);
     }
 }
@@ -225,13 +226,13 @@ void emit3(K3 *key, V3 *value, void *context)
     JobContext *generalContext = (JobContext *) tc->generalContext;
     if (pthread_mutex_lock(&(generalContext->outputVecLocker)) != SUCCESS)
     {
-        cerr << SYS_ERROR << MUTEX_LOCK_FAILED;
+        std::cerr << SYS_ERROR << MUTEX_LOCK_FAILED;
         exit(SYSTEM_CALL_FAILURE);
     }
     generalContext->outputVec.push_back(OutputPair(key, value));
     if (pthread_mutex_unlock(&generalContext->outputVecLocker) != SUCCESS)
     {
-        cerr << SYS_ERROR << MUTEX_UNLOCK_FAILED;
+        std::cerr << SYS_ERROR << MUTEX_UNLOCK_FAILED;
         exit(SYSTEM_CALL_FAILURE);
     }
 }
@@ -266,36 +267,39 @@ JobHandle startMapReduceJob(const MapReduceClient &client,
                 .isWaitCalled = false
         };
 
+
         for (int i = 0; i < multiThreadLevel - 1; ++i)
         {
             contexts[i] = *new ThreadContext;
             contexts[i].locker = PTHREAD_MUTEX_INITIALIZER;
+            contexts[i].generalContext = generalContext;
             int pthreadErrno = pthread_create(threads + i, NULL, generalThreadRun, contexts + i);
             if (pthreadErrno != SUCCESS)
             {
-                cerr << SYS_ERROR << PTHREAD_CREATE_ERROR << pthreadErrno << "\n";
+                std::cerr << SYS_ERROR << PTHREAD_CREATE_ERROR << pthreadErrno << "\n";
                 exit(SYSTEM_CALL_FAILURE);
             }
         }
 
-        int pthreadErrno = pthread_create(threads + (multiThreadLevel - 1), NULL, &shuffleThreadRun,
-                                          contexts + (multiThreadLevel - 1));
-        if (pthreadErrno != SUCCESS)
-        {
-            cerr << SYS_ERROR << PTHREAD_CREATE_ERROR << pthreadErrno << "\n";
-            exit(SYSTEM_CALL_FAILURE);
-        }
+    contexts[multiThreadLevel - 1] = *new ThreadContext;
+    contexts[multiThreadLevel - 1].locker = PTHREAD_MUTEX_INITIALIZER;
+    contexts[multiThreadLevel - 1].generalContext = generalContext;
 
-        return generalContext;
-    }
-    catch (const bad_alloc &)
+    int pthreadErrno = pthread_create(threads + (multiThreadLevel - 1), NULL, &shuffleThreadRun,
+                                      contexts + (multiThreadLevel - 1));
+    if (pthreadErrno != SUCCESS)
     {
-
-        cerr << SYS_ERROR << BAD_ALLOC_ERROR;
+        std::cerr << SYS_ERROR << PTHREAD_CREATE_ERROR << pthreadErrno << "\n";
         exit(SYSTEM_CALL_FAILURE);
     }
+    return generalContext;
+    }
+    catch (const std::bad_alloc &)
+    {
 
-
+        std::cerr << SYS_ERROR << BAD_ALLOC_ERROR;
+        exit(SYSTEM_CALL_FAILURE);
+    }
 }
 
 void waitForJob(JobHandle job)
@@ -305,7 +309,7 @@ void waitForJob(JobHandle job)
     int pthreadErrno = pthread_join(jobContext->threads[jobContext->threadCount - 1], NULL);
     if (pthreadErrno != SUCCESS)
     {
-        cerr << SYS_ERROR << JOIN_FAILED << pthreadErrno << "\n";
+        std::cerr << SYS_ERROR << JOIN_FAILED << pthreadErrno << "\n";
         exit(SYSTEM_CALL_FAILURE);
     }
 }
