@@ -84,7 +84,7 @@ void *shuffleThreadRun(void *contextArg)
 {
     ThreadContext *currContext = (ThreadContext *) contextArg;
     JobContext *generalContext = (JobContext *) currContext->generalContext;
-    while (*(generalContext->atomicFinishedCounter) < generalContext->inputVec.size() - 1)
+    while (*(generalContext->atomicFinishedCounter) < (int)generalContext->inputVec.size() - 1)
     {
         for (int i = 0; i < generalContext->threadCount - 1; i++)
         {
@@ -246,7 +246,7 @@ JobHandle startMapReduceJob(const MapReduceClient &client,
                 .contexts = contexts,
                 .threads = threads,
                 .threadCount = multiThreadLevel,
-                .stage = MAP_STAGE,
+                .stage = UNDEFINED_STAGE,
                 .inputVec = inputVec,
                 .outputVec = outputVec,
                 .client = client,
@@ -291,9 +291,6 @@ JobHandle startMapReduceJob(const MapReduceClient &client,
         contexts[multiThreadLevel - 1].locker = PTHREAD_MUTEX_INITIALIZER;
         contexts[multiThreadLevel - 1].generalContext = generalContext;
 
-        int pthreadErrno = pthread_create(threads + (multiThreadLevel - 1), NULL, &shuffleThreadRun,
-                                          contexts + (multiThreadLevel - 1));
-
         if (pthread_mutex_lock(&(generalContext->stageLocker)) != SUCCESS)
         {
             std::cerr << SYS_ERROR << MUTEX_LOCK_FAILED;
@@ -307,6 +304,10 @@ JobHandle startMapReduceJob(const MapReduceClient &client,
             std::cerr << SYS_ERROR << MUTEX_UNLOCK_FAILED;
             exit(SYSTEM_CALL_FAILURE);
         }
+
+        int pthreadErrno = pthread_create(threads + (multiThreadLevel - 1), NULL, &shuffleThreadRun,
+                                          contexts + (multiThreadLevel - 1));
+
 
         if (pthreadErrno != SUCCESS)
         {
