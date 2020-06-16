@@ -35,6 +35,7 @@ uint64_t getCurrentOffset(unsigned int currentLayer, uint64_t virtualAddress)
 
 int VMread(uint64_t virtualAddress, word_t *value)
 {
+    uint64_t pageID = virtualAddress >> OFFSET_WIDTH;
     uint64_t addr = 0;
     word_t pmValue;
     unsigned int currentLayer = 0;
@@ -48,24 +49,18 @@ int VMread(uint64_t virtualAddress, word_t *value)
         {
             freeFrame = findFreeFrame(previousAddress);
 
-            // Restore the page we are looking for to frame <free_frame> (only necessary in actual pages)
-
-
-            // Write 0 in all of its contents (only necessary in tables)
             if (currentLayer < TABLES_DEPTH - 1)
             {
                 clearTable(freeFrame);
+            } else
+            {
+                PMrestore(freeFrame, pageID);
             }
-
-
-
-            // PMwrite(addr * PAGE_SIZE + offset, <free_frame>)
-            //addr = <free_frame>
-
         }
         previousAddress = pmValue;
         currentLayer++;
     }
+    PMread(addr*PAGE_SIZE +)
     // If its a write command: PMwrite(addr * PAGE_SIZE + lastOffset, value)
     return 1;
 }
