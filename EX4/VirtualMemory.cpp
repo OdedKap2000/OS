@@ -49,15 +49,15 @@ int VMread(uint64_t virtualAddress, word_t *value)
             freeFrame = findFreeFrame(previousAddress);
 
             // Restore the page we are looking for to frame <free_frame> (only necessary in actual pages)
-            if (currentLayer < TABLES_DEPTH - 1)
-            {
-                for (int i = 0; i < ; ++i)
-                {
 
-                }
-            }
 
             // Write 0 in all of its contents (only necessary in tables)
+            if (currentLayer < TABLES_DEPTH - 1)
+            {
+                clearTable(freeFrame);
+            }
+
+
 
             // PMwrite(addr * PAGE_SIZE + offset, <free_frame>)
             //addr = <free_frame>
