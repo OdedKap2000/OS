@@ -8,6 +8,8 @@
 #define ROOT_OFFSET_MOD (VIRTUAL_ADDRESS_WIDTH % OFFSET_WIDTH)
 #define ROOT_OFFSET_WIDTH ((ROOT_OFFSET_MOD) ? ROOT_OFFSET_MOD : OFFSET_WIDTH)
 #define VIRTUAL_ADDRESS_COUNT (1 << VIRTUAL_ADDRESS_WIDTH)
+#define FAILURE 0
+#define SUCCESS 1
 
 void clearTable(uint64_t frameIndex)
 {
@@ -19,7 +21,8 @@ void clearTable(uint64_t frameIndex)
 
 void VMinitialize()
 {
-    for (word_t i = 0; i < NUM_FRAMES; i++){
+    for (word_t i = 0; i < NUM_FRAMES; i++)
+    {
         clearTable(i);
     }
 }
@@ -136,7 +139,7 @@ word_t findFreeFrame(word_t previousAddress, uint64_t destinationPageID)
     // Make sure it's not the previous address
     dfs_DATA dfs_data = dfs_DATA{.previousAddress=previousAddress, .maxCyclicDistance =  0,
             .farthestVirtualAddressByCyclic = 0, .farthestFrameIdByCyclic=0, .farthestCyclicParent=0, .farthestCyclicOffsetInParent=0,
-                                                                                                                                            .maxFrameUsed = 0, .freeFrameFound = false,
+            .maxFrameUsed = 0, .freeFrameFound = false,
             .freeFrameResult = 0, .destinationPageID = destinationPageID};
     DFS(&dfs_data, 0, 0, 0, 0);
 
@@ -163,6 +166,10 @@ word_t findFreeFrame(word_t previousAddress, uint64_t destinationPageID)
 
 int operationWrapper(uint64_t virtualAddress, word_t *value, int operation)
 {
+    if (virtualAddress >= VIRTUAL_MEMORY_SIZE)
+    {
+        return FAILURE;
+    }
     uint64_t pageID = virtualAddress >> OFFSET_WIDTH;
     word_t addr = 0;
     word_t pmValue;
@@ -199,7 +206,7 @@ int operationWrapper(uint64_t virtualAddress, word_t *value, int operation)
     {
         PMwrite(addr * PAGE_SIZE + getCurrentOffset(TABLES_DEPTH, virtualAddress), *value);
     }
-    return 1;
+    return SUCCESS;
 }
 
 
