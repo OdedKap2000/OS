@@ -143,7 +143,7 @@ word_t findFreeFrame(word_t previousAddress, uint64_t destinationPageID)
     if (dfs_data.freeFrameFound)
     {
 //        after we found the free frame we erased the pointer to it from its parent.
-        return dfs_data.freeFrameFound;
+        return dfs_data.freeFrameResult;
     }
 
     if (dfs_data.maxFrameUsed != NUM_FRAMES - 1)
