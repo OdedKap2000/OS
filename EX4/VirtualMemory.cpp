@@ -5,7 +5,8 @@
 
 #define READ 1
 #define WRITE 2
-#define ROOT_OFFSET_WIDTH (VIRTUAL_ADDRESS_WIDTH % OFFSET_WIDTH)
+#define ROOT_OFFSET_MOD (VIRTUAL_ADDRESS_WIDTH % OFFSET_WIDTH)
+#define ROOT_OFFSET_WIDTH ((ROOT_OFFSET_MOD) ? ROOT_OFFSET_MOD : OFFSET_WIDTH)
 #define VIRTUAL_ADDRESS_COUNT (1 << VIRTUAL_ADDRESS_WIDTH)
 
 void clearTable(uint64_t frameIndex)
@@ -18,7 +19,9 @@ void clearTable(uint64_t frameIndex)
 
 void VMinitialize()
 {
-    clearTable(0);
+    for (word_t i = 0; i < NUM_FRAMES; i++){
+        clearTable(i);
+    }
 }
 
 struct dfs_DATA
@@ -27,6 +30,8 @@ struct dfs_DATA
     int maxCyclicDistance;
     uint64_t farthestVirtualAddressByCyclic;
     word_t farthestFrameIdByCyclic;
+    word_t farthestCyclicParent; // The parent of the frame we evict. Used to delete pointer to evicted frame.
+    uint64_t farthestCyclicOffsetInParent; // the offset of the frame we evict in its parent. used to delete pointer to evicted frame
     word_t maxFrameUsed;
     bool freeFrameFound;
     word_t freeFrameResult;
@@ -48,11 +53,29 @@ int calcCyclicDistance(uint64_t a, uint64_t b)
     return min(dist, VIRTUAL_ADDRESS_COUNT - dist);
 }
 
-void DFS(dfs_DATA *my_data, int currentLayer, uint64_t pageID, word_t addr, word_t parentAddr)
+uint64_t getCurrentOffset(unsigned int currentLayer, uint64_t virtualAddress)
+{
+    if (currentLayer == 0)
+    {
+        uint64_t mask = ((1LL << ROOT_OFFSET_WIDTH) - 1) << (OFFSET_WIDTH * (TABLES_DEPTH - currentLayer));
+        uint64_t maskedOffset = virtualAddress & mask;
+        return maskedOffset >> (OFFSET_WIDTH * (TABLES_DEPTH - currentLayer));
+    }
+    uint64_t mask = ((1LL << OFFSET_WIDTH) - 1) << (OFFSET_WIDTH * (TABLES_DEPTH - currentLayer));
+    uint64_t maskedOffset = virtualAddress & mask;
+    return maskedOffset >> (OFFSET_WIDTH * (TABLES_DEPTH - currentLayer));
+}
+
+void DFS(dfs_DATA *my_data, unsigned int currentLayer, uint64_t pageID, word_t addr, word_t parentAddr)
 {
     if (my_data->freeFrameFound)
     {
         return;
+    }
+
+    if (my_data->maxFrameUsed < addr)
+    {
+        my_data->maxFrameUsed = addr;
     }
 
     if (currentLayer == TABLES_DEPTH)
@@ -63,6 +86,9 @@ void DFS(dfs_DATA *my_data, int currentLayer, uint64_t pageID, word_t addr, word
             my_data->maxCyclicDistance = cyclicDistance;
             my_data->farthestVirtualAddressByCyclic = pageID;
             my_data->farthestFrameIdByCyclic = addr;
+            my_data->farthestCyclicParent = parentAddr;
+            //th pageId now is the pageId without the offset in it. The current layer is the last layer.
+            my_data->farthestCyclicOffsetInParent = pageID & ((1LL << OFFSET_WIDTH) - 1);
         }
         return;
     }
@@ -77,10 +103,10 @@ void DFS(dfs_DATA *my_data, int currentLayer, uint64_t pageID, word_t addr, word
         childrenAmount = 1 << OFFSET_WIDTH;
     }
 
-    if (my_data->maxFrameUsed < addr)
-    {
-        my_data->maxFrameUsed = addr;
-    }
+//    if (my_data->maxFrameUsed < addr)
+//    {
+//        my_data->maxFrameUsed = addr;
+//    }
 
     bool allZeros = true;
     word_t pmValue;
@@ -102,7 +128,6 @@ void DFS(dfs_DATA *my_data, int currentLayer, uint64_t pageID, word_t addr, word
         uint64_t myOffset = pageID & ((1 << OFFSET_WIDTH) - 1);
         PMwrite(parentAddr * PAGE_SIZE + myOffset, 0);
     }
-
 }
 
 word_t findFreeFrame(word_t previousAddress, uint64_t destinationPageID)
@@ -110,8 +135,8 @@ word_t findFreeFrame(word_t previousAddress, uint64_t destinationPageID)
     // Find an unused frame or evict a page from some frame.
     // Make sure it's not the previous address
     dfs_DATA dfs_data = dfs_DATA{.previousAddress=previousAddress, .maxCyclicDistance =  0,
-            .farthestVirtualAddressByCyclic = 0, .farthestFrameIdByCyclic=0,
-            .maxFrameUsed = 0, .freeFrameFound = false,
+            .farthestVirtualAddressByCyclic = 0, .farthestFrameIdByCyclic=0, .farthestCyclicParent=0, .farthestCyclicOffsetInParent=0,
+                                                                                                                                            .maxFrameUsed = 0, .freeFrameFound = false,
             .freeFrameResult = 0, .destinationPageID = destinationPageID};
     DFS(&dfs_data, 0, 0, 0, 0);
 
@@ -126,22 +151,14 @@ word_t findFreeFrame(word_t previousAddress, uint64_t destinationPageID)
         return 1 + dfs_data.maxFrameUsed;
     }
 
+
     PMevict((uint64_t) dfs_data.farthestFrameIdByCyclic, dfs_data.farthestVirtualAddressByCyclic);
+    // delete the pointer to the evicted frame from its parent
+    PMwrite(dfs_data.farthestCyclicParent * PAGE_SIZE + dfs_data.farthestCyclicOffsetInParent, 0);
+    // clear the page we evict. to avoid reading values we inserted in the past as valid pointers.
+    clearTable(dfs_data.farthestFrameIdByCyclic);
     return dfs_data.farthestFrameIdByCyclic;
 
-}
-
-uint64_t getCurrentOffset(unsigned int currentLayer, uint64_t virtualAddress)
-{
-    if (currentLayer == 0)
-    {
-        uint64_t mask = ((1LL << ROOT_OFFSET_WIDTH) - 1) << (OFFSET_WIDTH * (TABLES_DEPTH - currentLayer));
-        uint64_t maskedOffset = virtualAddress & mask;
-        return maskedOffset >> (OFFSET_WIDTH * (TABLES_DEPTH - currentLayer));
-    }
-    uint64_t mask = ((1LL << OFFSET_WIDTH) - 1) << (OFFSET_WIDTH * (TABLES_DEPTH - currentLayer));
-    uint64_t maskedOffset = virtualAddress & mask;
-    return maskedOffset >> (OFFSET_WIDTH * (TABLES_DEPTH - currentLayer));
 }
 
 int operationWrapper(uint64_t virtualAddress, word_t *value, int operation)
@@ -155,11 +172,12 @@ int operationWrapper(uint64_t virtualAddress, word_t *value, int operation)
 
     while (currentLayer < TABLES_DEPTH)
     {
+        previousAddress = addr;
         uint64_t currentOffset = getCurrentOffset(currentLayer, virtualAddress);
         PMread(addr * PAGE_SIZE + currentOffset, &pmValue);
         if (pmValue == 0)
         {
-            freeFrame = findFreeFrame(previousAddress, pageID);
+            freeFrame = findFreeFrame(addr, pageID);
 
             if (currentLayer < TABLES_DEPTH - 1)
             {
@@ -171,7 +189,6 @@ int operationWrapper(uint64_t virtualAddress, word_t *value, int operation)
             pmValue = freeFrame;
             PMwrite(addr * PAGE_SIZE + currentOffset, pmValue);
         }
-        previousAddress = addr;
         addr = pmValue;
         currentLayer++;
     }
