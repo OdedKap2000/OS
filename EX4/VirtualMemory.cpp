@@ -90,7 +90,7 @@ void DFS(dfs_DATA *my_data, unsigned int currentLayer, uint64_t pageID, word_t a
             my_data->farthestVirtualAddressByCyclic = pageID;
             my_data->farthestFrameIdByCyclic = addr;
             my_data->farthestCyclicParent = parentAddr;
-            //th pageId now is the pageId without the offset in it. The current layer is the last layer.
+            //the pageId now is the pageId without the offset in it. The current layer is the last layer.
             my_data->farthestCyclicOffsetInParent = pageID & ((1LL << OFFSET_WIDTH) - 1);
         }
         return;
@@ -105,11 +105,6 @@ void DFS(dfs_DATA *my_data, unsigned int currentLayer, uint64_t pageID, word_t a
     {
         childrenAmount = 1 << OFFSET_WIDTH;
     }
-
-//    if (my_data->maxFrameUsed < addr)
-//    {
-//        my_data->maxFrameUsed = addr;
-//    }
 
     bool allZeros = true;
     word_t pmValue;
@@ -141,7 +136,8 @@ word_t findFreeFrame(word_t previousAddress, uint64_t destinationPageID)
             .farthestVirtualAddressByCyclic = 0, .farthestFrameIdByCyclic=0, .farthestCyclicParent=0, .farthestCyclicOffsetInParent=0,
             .maxFrameUsed = 0, .freeFrameFound = false,
             .freeFrameResult = 0, .destinationPageID = destinationPageID};
-    DFS(&dfs_data, 0, 0, 0, 0);
+    unsigned int currentLayer = 0;
+    DFS(&dfs_data, currentLayer, 0, 0, 0);
 
     if (dfs_data.freeFrameFound)
     {
@@ -174,19 +170,17 @@ int operationWrapper(uint64_t virtualAddress, word_t *value, int operation)
     word_t addr = 0;
     word_t pmValue;
     unsigned int currentLayer = 0;
-    word_t previousAddress = 0;
     word_t freeFrame;
 
     while (currentLayer < TABLES_DEPTH)
     {
-        previousAddress = addr;
         uint64_t currentOffset = getCurrentOffset(currentLayer, virtualAddress);
         PMread(addr * PAGE_SIZE + currentOffset, &pmValue);
         if (pmValue == 0)
         {
             freeFrame = findFreeFrame(addr, pageID);
 
-            if (currentLayer < TABLES_DEPTH - 1)
+            if (currentLayer < (unsigned int)(TABLES_DEPTH - 1))
             {
                 clearTable(freeFrame);
             } else
