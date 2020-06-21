@@ -1,0 +1,14 @@
+galhar, odedkaplan
+Gal Harari (208296822), Oded Kaplan (211490198)
+EX: 4
+
+FILES:
+VirtualMemory.cpp - the source code for the VirtualMemory.h supplied, that virtual memory.
+MakeFile - a makefile which generates a static library out of VirtualMemory.cpp and 
+	VirtualMemory.h when called with no arguments.
+
+
+REMARKS:
+
+
+ANSWERS:
